@@ -89,7 +89,7 @@ export function createFaultedCornerPointFixture(): SyntheticReservoirFixture {
     cellSize: [10, 10, 10]
   });
   geometry.pillarCoordinates.set([10, 0, 2, 10, 0, 12], 6);
-  geometry.pillarCoordinates.set([10, 10, 2, 10, 10, 12], 18);
+  geometry.pillarCoordinates.set([10, 10, 2, 10, 10, 12], 24);
   geometry.cornerDepths.set([2, 2, 2, 2, 12, 12, 12, 12], 8);
 
   return createFixture(

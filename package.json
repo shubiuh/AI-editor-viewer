@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "benchmark:surface": "vitest run tests/reservoir/geometry/surface-extraction.benchmark.test.ts",
     "check": "npm run typecheck && npm test && npm run build",
     "package:win": "npm run build && electron-builder --win",
     "start": "npm run dev"
