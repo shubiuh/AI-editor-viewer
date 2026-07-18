@@ -52,6 +52,14 @@
     if (status) status.hidden = true;
   }
 
+  const originalReadAsArrayBuffer = FileReader.prototype.readAsArrayBuffer;
+  FileReader.prototype.readAsArrayBuffer = function readAsArrayBuffer(file) {
+    if (file?.name?.toLowerCase().endsWith('.vtk')) {
+      window.GlanceTetraVolume.lastFile = file;
+    }
+    return originalReadAsArrayBuffer.call(this, file);
+  };
+
   function readStoredViewMode() {
     try {
       const storedMode = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
@@ -489,7 +497,7 @@
         fileName = name;
       },
       async parseAsArrayBuffer(buffer) {
-        if (isLegacyTetraGrid(buffer) && window.GlanceTetraVolume.mode === 'volume') {
+        if (isLegacyTetraGrid(buffer)) {
           try {
             const grid = parseLegacyTetraGrid(buffer);
             const resolution = window.GlanceTetraVolume.resolution;
@@ -508,9 +516,57 @@
     };
   }
 
+  function registerGeometryReader() {
+    window.Glance.registerReader({
+      extension: 'vtk',
+      name: 'Legacy VTK geometry reader',
+      vtkReader: vtkITKPolyDataReader,
+      binary: true,
+      fileNameMethod: 'setFileName'
+    });
+  }
+
+  function registerVolumeReader() {
+    window.Glance.registerReader({
+      extension: 'vtk',
+      name: 'Legacy VTK tetra volume reader',
+      vtkReader: { newInstance: createReader },
+      binary: true,
+      fileNameMethod: 'setFileName'
+    });
+  }
+
+  function registerReaderForMode(mode) {
+    if (mode === 'geometry') {
+      registerGeometryReader();
+    } else {
+      registerVolumeReader();
+    }
+  }
+
+  async function reloadCurrentFile() {
+    const file = window.GlanceTetraVolume.lastFile;
+    const store = window.glanceInstance?.store;
+    const proxyManager = window.glanceInstance?.proxyManager;
+    if (!file || !store || !proxyManager) return false;
+
+    setStatus(`Loading ${window.GlanceTetraVolume.mode} view…`);
+    store.dispatch('resetWorkspace');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await store.dispatch('files/resetQueue');
+    await store.dispatch('files/openFiles', [file]);
+    await store.dispatch('files/load');
+    await store.dispatch('files/resetQueue');
+    store.commit('showApp');
+    proxyManager.resetCameraInAllViews();
+    clearStatus();
+    return true;
+  }
+
   window.GlanceTetraVolume = {
     mode: readStoredViewMode(),
     resolution: DEFAULT_LONG_AXIS_RESOLUTION,
+    lastFile: null,
     setMode(value) {
       const mode = String(value).toLowerCase();
       if (mode !== 'geometry' && mode !== 'volume') {
@@ -518,9 +574,11 @@
       }
       this.mode = mode;
       storeViewMode(mode);
+      registerReaderForMode(mode);
       window.dispatchEvent(new CustomEvent('glance-tetra-view-mode', {
         detail: { mode }
       }));
+      return reloadCurrentFile();
     },
     setResolution(value) {
       const resolution = Math.round(Number(value));
@@ -533,11 +591,5 @@
     voxelizeTetraGrid
   };
 
-  window.Glance.registerReader({
-    extension: 'vtk',
-    name: 'Legacy VTK tetra volume reader',
-    vtkReader: { newInstance: createReader },
-    binary: true,
-    fileNameMethod: 'setFileName'
-  });
+  registerReaderForMode(window.GlanceTetraVolume.mode);
 })();

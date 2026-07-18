@@ -43,8 +43,8 @@
     <div id="root-container"></div>
     <script>
       const container = document.querySelector('#root-container');
-      const glanceInstance = Glance.createViewer(container);
-      glanceInstance.processURLArgs();
+      window.glanceInstance = Glance.createViewer(container);
+      window.glanceInstance.processURLArgs();
     </script>
     <script src="editor-glance.js"></script>
   </body>

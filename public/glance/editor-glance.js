@@ -83,7 +83,7 @@ function addTetraViewSelector() {
 
   const control = document.createElement('label');
   control.className = 'tetra-view-mode';
-  control.title = 'Select how tetrahedral VTK files will open. Reopen the file after changing this option.';
+  control.title = 'Switch between geometry and volume rendering for the current tetrahedral VTK file.';
 
   const label = document.createElement('span');
   label.className = 'tetra-view-mode__label';
@@ -98,17 +98,22 @@ function addTetraViewSelector() {
     <option value="volume">Volume</option>
   `;
   select.value = volumeExtension.mode;
-  select.addEventListener('change', () => {
-    volumeExtension.setMode(select.value);
+  select.addEventListener('change', async () => {
     control.dataset.changed = 'true';
-    window.setTimeout(() => {
-      delete control.dataset.changed;
-    }, 2400);
+    hint.textContent = 'Switching view…';
+    try {
+      const reloaded = await volumeExtension.setMode(select.value);
+      hint.textContent = reloaded ? 'View switched' : 'Applies to the next VTK file';
+    } catch (error) {
+      console.error('Failed to switch tetra view mode.', error);
+      hint.textContent = 'Unable to switch view';
+    }
+    window.setTimeout(() => delete control.dataset.changed, 2400);
   });
 
   const hint = document.createElement('span');
   hint.className = 'tetra-view-mode__hint';
-  hint.textContent = 'Reopen VTK to apply';
+  hint.textContent = 'Switching view…';
 
   control.append(label, select, hint);
   openButton.parentElement.insertBefore(control, openButton);
