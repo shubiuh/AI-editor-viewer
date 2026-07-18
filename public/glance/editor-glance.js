@@ -11,6 +11,8 @@ function simplifyGlance() {
     aboutButton.remove();
   }
 
+  addTetraViewSelector();
+
   const sampleHeading = [...document.querySelectorAll('*')].find(
     (element) => element.children.length === 0 && element.textContent.trim() === 'Sample Data'
   );
@@ -55,13 +57,61 @@ function simplifyGlance() {
         <ul>
           <li>Use <strong>Open</strong> to choose a file.</li>
           <li>Drop a supported file into the panel.</li>
-          <li>Legacy <code>.vtk</code> files open directly in Glance.</li>
+          <li>Choose <strong>Geometry</strong> for surface/wireframe views or <strong>Volume</strong> for ray casting.</li>
         </ul>
       </div>
     `;
     landingRow.insertBefore(layout, dropColumn);
     layout.append(intro, dropColumn);
   }
+}
+
+function addTetraViewSelector() {
+  const volumeExtension = window.GlanceTetraVolume;
+  if (!volumeExtension) return;
+
+  const existingSelect = document.querySelector('#tetra-view-mode');
+  if (existingSelect) {
+    existingSelect.value = volumeExtension.mode;
+    return;
+  }
+
+  const openButton = [...document.querySelectorAll('button')].find(
+    (button) => button.textContent.trim().toUpperCase() === 'OPEN'
+  );
+  if (!openButton?.parentElement) return;
+
+  const control = document.createElement('label');
+  control.className = 'tetra-view-mode';
+  control.title = 'Select how tetrahedral VTK files will open. Reopen the file after changing this option.';
+
+  const label = document.createElement('span');
+  label.className = 'tetra-view-mode__label';
+  label.textContent = 'VTK TETRA VIEW';
+
+  const select = document.createElement('select');
+  select.id = 'tetra-view-mode';
+  select.className = 'tetra-view-mode__select';
+  select.setAttribute('aria-label', 'VTK tetrahedral view mode');
+  select.innerHTML = `
+    <option value="geometry">Geometry</option>
+    <option value="volume">Volume</option>
+  `;
+  select.value = volumeExtension.mode;
+  select.addEventListener('change', () => {
+    volumeExtension.setMode(select.value);
+    control.dataset.changed = 'true';
+    window.setTimeout(() => {
+      delete control.dataset.changed;
+    }, 2400);
+  });
+
+  const hint = document.createElement('span');
+  hint.className = 'tetra-view-mode__hint';
+  hint.textContent = 'Reopen VTK to apply';
+
+  control.append(label, select, hint);
+  openButton.parentElement.insertBefore(control, openButton);
 }
 
 new MutationObserver(() => {
