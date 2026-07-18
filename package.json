@@ -14,6 +14,8 @@
     "test:coverage": "vitest run --coverage",
     "benchmark:surface": "vitest run tests/reservoir/geometry/surface-extraction.benchmark.test.ts",
     "benchmark:reservoir": "vitest run --config vitest.benchmark.config.ts",
+    "audit:licenses": "node scripts/license-audit.mjs",
+    "audit:licenses:check": "node scripts/license-audit.mjs --check",
     "check": "npm run typecheck && npm test && npm run build",
     "package:win": "npm run build && electron-builder --win",
     "start": "npm run dev"

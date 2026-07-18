@@ -1,0 +1,28 @@
+{
+  "allowedLicenses": [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Python-2.0",
+    "Unlicense",
+    "WTFPL"
+  ],
+  "prohibitedLicensePatterns": [
+    "(^|[^A-Z])AGPL",
+    "(^|[^A-Z])GPL(-|$)",
+    "SSPL",
+    "BUSL",
+    "Business Source"
+  ],
+  "reviewedExceptions": [],
+  "policyNotes": [
+    "A reviewed exception must use name@version and include a separate legal approval record.",
+    "Unknown and requires-review records do not automatically fail this lightweight CI check; they require human review before release.",
+    "Dual-license expressions require review unless the selected allowed option and attribution obligations are documented."
+  ]
+}
