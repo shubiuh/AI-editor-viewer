@@ -55,7 +55,7 @@ function simplifyGlance() {
         <ul>
           <li>Use <strong>Open</strong> to choose a file.</li>
           <li>Drop a supported file into the panel.</li>
-          <li>Use the VTK tab for legacy <code>.vtk</code> datasets.</li>
+          <li>Legacy <code>.vtk</code> files open in the VTK tab.</li>
         </ul>
       </div>
     `;
@@ -64,7 +64,9 @@ function simplifyGlance() {
   }
 }
 
-new MutationObserver(simplifyGlance).observe(document.body, {
+new MutationObserver(() => {
+  simplifyGlance();
+}).observe(document.body, {
   childList: true,
   subtree: true
 });

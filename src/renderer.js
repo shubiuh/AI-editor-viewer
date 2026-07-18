@@ -162,6 +162,34 @@ function decodeBase64(base64) {
   return bytes.buffer;
 }
 
+function renderLegacyVtkData(data, fileName) {
+  vtkViewer.renderData(data, ".vtk");
+  selectRenderTab("vtk");
+  vtkFileNameElement.textContent = fileName;
+  vtkEmptyState.hidden = true;
+  setStatus(`已加载 VTK：${fileName}`);
+}
+
+window.addEventListener("message", (event) => {
+  if (
+    event.source !== glanceRenderWindow.contentWindow ||
+    event.data?.type !== "ai-editor:open-legacy-vtk" ||
+    typeof event.data.fileName !== "string" ||
+    !(event.data.data instanceof ArrayBuffer)
+  ) {
+    return;
+  }
+
+  try {
+    renderLegacyVtkData(event.data.data, event.data.fileName);
+  } catch (error) {
+    console.error(error);
+    const message = `加载 VTK 失败：${error.message}`;
+    setStatus(message);
+    alert(message);
+  }
+});
+
 function openFileInBrowser() {
   return new Promise((resolve) => {
     const input = document.createElement("input");
@@ -203,14 +231,7 @@ async function openVtkFile() {
       throw new Error(result.error);
     }
 
-    vtkViewer.renderData(
-      decodeBase64(result.content),
-      result.extension
-    );
-    selectRenderTab("vtk");
-    vtkFileNameElement.textContent = result.fileName;
-    vtkEmptyState.hidden = true;
-    setStatus(`已加载 VTK：${result.fileName}`);
+    renderLegacyVtkData(decodeBase64(result.content), result.fileName);
   } catch (error) {
     console.error(error);
     const message = `加载 VTK 失败：${error.message}`;
