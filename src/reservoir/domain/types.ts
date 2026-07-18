@@ -140,10 +140,40 @@ export interface PropertyFrame {
 export interface WellTrajectory {
   readonly wellId: string;
   readonly wellName: string;
+  /** Input stations are preserved without unit conversion for provenance. */
+  readonly rawStations: readonly WellTrajectoryRawStation[];
   readonly measuredDepths: Float64Array;
-  readonly xyz: CoordinateValues;
+  /** Flattened Float64 xyz in metres: easting, northing, and depth positive down from the datum. */
+  readonly xyz: Float64Array;
   readonly datum: string;
   readonly coordinateReferenceSystem: CoordinateReferenceSystem;
+  readonly coordinateConvention: WellTrajectoryCoordinateConvention;
+}
+
+export interface ExplicitWellTrajectoryStation {
+  readonly kind: "explicit-xyz";
+  readonly measuredDepth: number;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+export interface DeviationSurveyStation {
+  readonly kind: "deviation-survey";
+  readonly measuredDepth: number;
+  readonly inclination: number;
+  readonly azimuth: number;
+}
+
+export type WellTrajectoryRawStation = ExplicitWellTrajectoryStation | DeviationSurveyStation;
+
+export interface WellTrajectoryCoordinateConvention {
+  readonly axisOrder: "east-north-depth";
+  readonly verticalDirection: "positive-down";
+  readonly lengthUnit: "metre";
+  readonly depthReference: string;
+  readonly azimuthConvention?: "north-clockwise" | "east-counterclockwise";
+  readonly northReference?: "true" | "grid" | "magnetic";
 }
 
 export interface WellLogCurve {

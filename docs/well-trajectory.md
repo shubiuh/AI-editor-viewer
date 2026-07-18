@@ -1,0 +1,7 @@
+# Well trajectories
+
+The well-trajectory domain accepts either explicit stations (`MD`, `X`, `Y`, `Z`) or a headered CSV deviation survey (`measured depth`, `inclination`, `azimuth`). Raw station values are retained unchanged for provenance. No angle unit is inferred: each deviation survey must explicitly declare `degrees` or `radians`. Length input is explicitly `metres` or `feet` and is converted to metres in the output arrays.
+
+Minimum-curvature output uses a `Float64Array` for measured depths and another `Float64Array` with flattened `[easting, northing, depth]` triples. The coordinate system is east, north, then depth positive down. Surface location is `[easting, northing, elevation]`, where elevation is positive up; output depth at the surface is `datumElevation - surfaceElevation`. This puts all trajectory depths relative to the selected datum.
+
+Inclination is measured from vertical down: `0` is vertical and `90` is horizontal. `north-clockwise` azimuth is clockwise from north (east is `90` degrees); `east-counterclockwise` starts at east (north is `90` degrees). The north reference (`true`, `grid`, or `magnetic`) is preserved as metadata and does not apply an implicit correction. Measured depth must be finite, non-negative, and strictly increasing. Inclination must be physically possible (`0` through `180` degrees, or `0` through $\pi$ radians).

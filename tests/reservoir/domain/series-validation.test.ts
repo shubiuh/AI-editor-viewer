@@ -33,10 +33,20 @@ describe("reservoir time-series validation", () => {
     const trajectory = {
       wellId: "well-a",
       wellName: "Well A",
+      rawStations: [
+        { kind: "explicit-xyz" as const, measuredDepth: 0, x: 0, y: 0, z: 0 },
+        { kind: "explicit-xyz" as const, measuredDepth: 100, x: 10, y: 20, z: 100 }
+      ],
       measuredDepths: new Float64Array([0, 100]),
       xyz: new Float64Array([0, 0, 0, 10, 20, 100]),
       datum: "KB",
-      coordinateReferenceSystem: { kind: "local" as const, name: "Case local" }
+      coordinateReferenceSystem: { kind: "local" as const, name: "Case local" },
+      coordinateConvention: {
+        axisOrder: "east-north-depth" as const,
+        verticalDirection: "positive-down" as const,
+        lengthUnit: "metre" as const,
+        depthReference: "KB"
+      }
     };
     const curve = {
       wellId: "well-a",

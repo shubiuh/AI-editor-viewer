@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "../../domain/result";
 import { validateUnitMetadata } from "../../domain/units";
 import { validateReservoirGrid, type ReservoirValidationError } from "./grid-validation";
-import type { CaseMetadata, ReservoirCase } from "./types";
+import type { CaseMetadata, ReservoirCase, WellTrajectory } from "./types";
 
 export function isCompatibleReservoirSchemaVersion(version: string): boolean {
   return /^1\.\d+\.\d+$/.test(version);
@@ -60,7 +60,44 @@ export function validateReservoirCase(
     }
   }
 
+  const wellIds = new Set<string>();
+  for (const well of reservoirCase.wells) {
+    if (wellIds.has(well.wellId)) {
+      return invalid("duplicate-well-id", "Well IDs must be unique within a reservoir case.");
+    }
+    wellIds.add(well.wellId);
+
+    const validatedWell = validateWellTrajectory(well);
+    if (!validatedWell.ok) {
+      return validatedWell;
+    }
+  }
+
   return ok(reservoirCase);
+}
+
+function validateWellTrajectory(well: WellTrajectory): Result<WellTrajectory, ReservoirValidationError> {
+  if (!well.wellId.trim() || !well.wellName.trim() || !well.datum.trim()) {
+    return invalid("invalid-well-trajectory", "Well ID, name, and datum must be non-empty.");
+  }
+  if (!(well.measuredDepths instanceof Float64Array) || !(well.xyz instanceof Float64Array)) {
+    return invalid("invalid-well-trajectory", "Well measured depths and xyz coordinates must be Float64Array values.");
+  }
+  if (well.measuredDepths.length === 0 || well.xyz.length !== well.measuredDepths.length * 3 || well.rawStations.length !== well.measuredDepths.length) {
+    return invalid("invalid-well-trajectory", "Well trajectory station arrays must have matching non-zero lengths.");
+  }
+  for (let index = 0; index < well.measuredDepths.length; index += 1) {
+    const measuredDepth = well.measuredDepths[index];
+    if (measuredDepth === undefined || !Number.isFinite(measuredDepth) || measuredDepth < 0 || index > 0 && measuredDepth <= (well.measuredDepths[index - 1] ?? Number.POSITIVE_INFINITY)) {
+      return invalid("invalid-well-trajectory", "Well measured depths must be finite, non-negative, and strictly increasing.");
+    }
+  }
+  for (const coordinate of well.xyz) {
+    if (!Number.isFinite(coordinate)) {
+      return invalid("invalid-well-trajectory", "Well xyz coordinates must be finite.");
+    }
+  }
+  return ok(well);
 }
 
 function invalid(code: string, message: string): Result<never, ReservoirValidationError> {
