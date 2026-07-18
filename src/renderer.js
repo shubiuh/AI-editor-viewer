@@ -15,6 +15,7 @@ import {
 } from "./editor-themes.js";
 import { createVtkViewer } from "./vtk-viewer.js";
 import { ReservoirViewer } from "./reservoir/rendering/reservoir-viewer";
+import { defaultWellTrajectoryRenderSettings } from "./reservoir/rendering/trajectory-render-plan";
 import { SurfaceExtractionWorkerClient, SurfaceWorkerCancelledError, SurfaceWorkerInitializationError, SurfaceWorkerRemoteError } from "./reservoir/geometry/surface-worker-client";
 import { GrdeclParserWorkerCancelledError, GrdeclParserWorkerClient } from "./reservoir/formats/grdecl/parser-worker-client";
 import {
@@ -72,6 +73,7 @@ const reservoirActiveToggle = document.querySelector("#reservoir-active-toggle")
 const reservoirInactiveToggle = document.querySelector("#reservoir-inactive-toggle");
 const reservoirEdgesToggle = document.querySelector("#reservoir-edges-toggle");
 const reservoirCameraSelect = document.querySelector("#reservoir-camera-select");
+const reservoirWellControls = document.querySelector("#reservoir-well-controls");
 const reservoirInspector = document.querySelector("#reservoir-inspector");
 const reservoirProgressPanel = document.querySelector("#reservoir-progress-panel");
 const reservoirProgress = document.querySelector("#reservoir-progress");
@@ -113,6 +115,8 @@ let activeReservoirToken = null;
 let reservoirLoadGeneration = 0;
 let reservoirStage = "Ready";
 let reservoirAttached = false;
+const wellRenderSettings = new Map();
+const wellPalette = [[0.94, 0.37, 0.16], [0.13, 0.77, 0.72], [0.96, 0.76, 0.2], [0.58, 0.72, 0.96]];
 initializeDockLayout();
 new ResizeObserver(() => vtkViewer.resize()).observe(
   document.querySelector("#vtk-render-window")
@@ -268,6 +272,8 @@ async function loadGrdeclReservoir() {
   ensureReservoirViewer();
   reservoirViewer.clear();
   reservoirModel = null;
+  wellRenderSettings.clear();
+  updateReservoirWellControls();
   replaceReservoirPropertyOptions([]);
   reservoirStage = "Selecting GRDECL file";
   reservoirWorkspaceState = setWorkspaceLoading(reservoirWorkspaceState);
@@ -337,12 +343,15 @@ async function loadGrdeclReservoir() {
       activityMask,
       localOrigin: parsed.reservoirCase.metadata.localOrigin,
       properties: parsed.reservoirCase.propertyCatalog.map((descriptor) => ({ descriptor, frame: parsed.reservoirCase.propertyFrames.find((frame) => frame.propertyId === descriptor.id) })),
+      wells: parsed.reservoirCase.wells,
       surface,
       warnings: parsed.warnings,
       parsingDurationMs,
       geometryDurationMs: performance.now() - geometryStarted
     };
     reservoirViewer.setGeometry({ surface, dimensions: reservoirModel.dimensions, localOrigin: reservoirModel.localOrigin, ...(activityMask ? { activityMask } : {}) });
+    updateReservoirWellControls();
+    applyReservoirWells();
     replaceReservoirPropertyOptions(reservoirModel.properties);
     reservoirWorkspaceState = setWorkspaceProperty(reservoirWorkspaceState, reservoirModel.properties[0]?.descriptor.id);
     applyReservoirWorkspaceState();
@@ -385,6 +394,128 @@ function applyReservoirWorkspaceState() {
     ...(property.descriptor.range ? { range: property.descriptor.range } : {}),
     undefinedVisible: true
   } : undefined);
+}
+
+function applyReservoirWells() {
+  if (!reservoirModel) {
+    reservoirViewer.setWells([]);
+    return;
+  }
+  reservoirViewer.setWells(reservoirModel.wells.map((trajectory, index) => ({
+    trajectory,
+    settings: wellSettingsFor(trajectory, index)
+  })));
+}
+
+function updateReservoirWellControls() {
+  reservoirWellControls.replaceChildren();
+  const wells = reservoirModel?.wells ?? [];
+  if (wells.length === 0) {
+    reservoirWellControls.textContent = "No trajectories loaded.";
+    return;
+  }
+  wells.forEach((trajectory, index) => {
+    const settings = wellSettingsFor(trajectory, index);
+    const control = document.createElement("div");
+    control.className = "reservoir-well-control";
+    const name = document.createElement("strong");
+    name.textContent = trajectory.wellName;
+    control.append(name);
+    control.append(
+      wellCheckbox("Visible", settings.visible, (checked) => updateWellSettings(trajectory.wellId, { visible: checked })),
+      wellColor(settings.color, (color) => updateWellSettings(trajectory.wellId, { color })),
+      wellSelect("Representation", [["line", "Line"], ["tube", "Tube"]], settings.representation, (representation) => updateWellSettings(trajectory.wellId, { representation })),
+      wellNumber("Radius", settings.radius, 0.01, (radius) => updateWellSettings(trajectory.wellId, { radius })),
+      wellCheckbox("Name label", settings.showLabel, (showLabel) => updateWellSettings(trajectory.wellId, { showLabel })),
+      wellCheckbox("MD tick marks", settings.showMdTicks, (showMdTicks) => updateWellSettings(trajectory.wellId, { showMdTicks })),
+      wellNumber("Tick interval", settings.mdTickInterval, 1, (mdTickInterval) => updateWellSettings(trajectory.wellId, { mdTickInterval })),
+      wellCheckbox("Clip to reservoir", settings.clipToReservoirBounds, (clipToReservoirBounds) => updateWellSettings(trajectory.wellId, { clipToReservoirBounds }))
+    );
+    reservoirWellControls.append(control);
+  });
+}
+
+function wellSettingsFor(trajectory, index) {
+  const stored = wellRenderSettings.get(trajectory.wellId);
+  if (stored) {
+    return stored;
+  }
+  const settings = defaultWellTrajectoryRenderSettings(trajectory.wellId, wellPalette[index % wellPalette.length]);
+  wellRenderSettings.set(trajectory.wellId, settings);
+  return settings;
+}
+
+function updateWellSettings(wellId, patch) {
+  const current = wellRenderSettings.get(wellId);
+  if (!current) {
+    return;
+  }
+  const next = { ...current, ...patch };
+  wellRenderSettings.set(wellId, next);
+  applyReservoirWells();
+}
+
+function wellCheckbox(label, checked, onChange) {
+  const control = document.createElement("label");
+  control.className = "reservoir-checkbox";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = checked;
+  input.addEventListener("change", () => onChange(input.checked));
+  control.append(input, document.createTextNode(label));
+  return control;
+}
+
+function wellNumber(label, value, minimum, onChange) {
+  const control = document.createElement("label");
+  control.append(document.createTextNode(label));
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = String(minimum);
+  input.step = "any";
+  input.value = String(value);
+  input.addEventListener("change", () => {
+    const next = Number(input.value);
+    if (Number.isFinite(next) && next >= minimum) {
+      onChange(next);
+    }
+  });
+  control.append(input);
+  return control;
+}
+
+function wellSelect(label, options, value, onChange) {
+  const control = document.createElement("label");
+  control.append(document.createTextNode(label));
+  const select = document.createElement("select");
+  options.forEach(([optionValue, optionLabel]) => select.add(new Option(optionLabel, optionValue)));
+  select.value = value;
+  select.addEventListener("change", () => onChange(select.value));
+  control.append(select);
+  return control;
+}
+
+function wellColor(color, onChange) {
+  const control = document.createElement("label");
+  control.append(document.createTextNode("Color"));
+  const input = document.createElement("input");
+  input.type = "color";
+  input.value = rgbToHex(color);
+  input.addEventListener("input", () => onChange(hexToRgb(input.value)));
+  control.append(input);
+  return control;
+}
+
+function rgbToHex(color) {
+  return `#${color.map((component) => Math.round(component * 255).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function hexToRgb(value) {
+  return [
+    Number.parseInt(value.slice(1, 3), 16) / 255,
+    Number.parseInt(value.slice(3, 5), 16) / 255,
+    Number.parseInt(value.slice(5, 7), 16) / 255
+  ];
 }
 
 async function streamReservoirFile(reservoirFiles, metadata, parserTask, generation) {
@@ -490,6 +621,10 @@ reservoirErrorClearButton.addEventListener("click", () => {
 reservoirRenderWindow.addEventListener("click", (event) => {
   const bounds = reservoirRenderWindow.getBoundingClientRect();
   const picked = reservoirViewer.pick(event.clientX - bounds.left, event.clientY - bounds.top);
+  if (picked && "wellId" in picked) {
+    reservoirInspector.textContent = `Well ${picked.wellName} | MD ${picked.measuredDepth.toFixed(2)} m | Station ${picked.stationIndex} | XYZ ${picked.worldCoordinate.map((value) => value.toFixed(2)).join(", ")}`;
+    return;
+  }
   reservoirInspector.textContent = picked
     ? `Cell ${String(picked.originalCellId)} | IJK ${picked.ijk.join(", ")} | Value ${picked.propertyValue ?? "undefined"}`
     : "No cell selected.";

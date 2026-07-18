@@ -4,8 +4,10 @@ import {
   type PropertyDescriptor,
   type PropertyFrame,
   type ReservoirGrid,
-  type StructuredGridDimensions
+  type StructuredGridDimensions,
+  type WellTrajectory
 } from "../../domain/types";
+import { createExplicitWellTrajectory } from "../../wells";
 import {
   activeCellCount,
   createOrthogonalCornerPointGeometry,
@@ -77,6 +79,29 @@ export function createThreeByTwoByTwoPropertyFixture(): SyntheticReservoirFixtur
       ]
     }
   };
+}
+
+/** Two trajectories crossing the synthetic 3 x 2 x 2 reservoir for viewer demonstrations. */
+export function createSyntheticCrossingWellTrajectories(): readonly WellTrajectory[] {
+  const options = {
+    lengthUnit: "metres" as const,
+    datum: "Synthetic datum",
+    datumElevation: 0,
+    surfaceLocation: [0, 0, 0] as const,
+    coordinateReferenceSystem: { kind: "local" as const, name: "Synthetic reservoir coordinates" }
+  };
+  return [
+    createExplicitWellTrajectory([
+      { measuredDepth: 0, x: 105, y: 205, z: 998 },
+      { measuredDepth: 10, x: 105, y: 205, z: 1002 },
+      { measuredDepth: 30, x: 125, y: 215, z: 1006 }
+    ], { ...options, wellId: "synthetic-east", wellName: "Synthetic East" }),
+    createExplicitWellTrajectory([
+      { measuredDepth: 0, x: 128, y: 202, z: 998 },
+      { measuredDepth: 14, x: 118, y: 212, z: 1002 },
+      { measuredDepth: 30, x: 102, y: 218, z: 1006 }
+    ], { ...options, wellId: "synthetic-west", wellName: "Synthetic West" })
+  ];
 }
 
 export function createFaultedCornerPointFixture(): SyntheticReservoirFixture {

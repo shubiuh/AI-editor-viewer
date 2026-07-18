@@ -1,5 +1,5 @@
 import type { Coordinate } from "../../domain/coordinates";
-import type { NumericValues, StructuredGridDimensions } from "../domain/types";
+import type { NumericValues, StructuredGridDimensions, WellTrajectory } from "../domain/types";
 import type { ReservoirSurfaceGeometry } from "../geometry/types";
 
 export type GeologicalView = "top" | "bottom" | "north" | "south" | "east" | "west" | "isometric";
@@ -45,4 +45,31 @@ export interface GeologicalCameraPose {
   readonly position: Coordinate;
   readonly focalPoint: Coordinate;
   readonly viewUp: Coordinate;
+}
+
+export type WellTrajectoryRepresentation = "line" | "tube";
+
+export interface WellTrajectoryRenderSettings {
+  readonly wellId: string;
+  readonly visible: boolean;
+  readonly color: readonly [number, number, number];
+  readonly representation: WellTrajectoryRepresentation;
+  readonly radius: number;
+  readonly showLabel: boolean;
+  readonly showMdTicks: boolean;
+  readonly mdTickInterval: number;
+  readonly clipToReservoirBounds: boolean;
+}
+
+export interface WellTrajectoryPickResult {
+  readonly wellId: string;
+  readonly wellName: string;
+  readonly stationIndex: number;
+  readonly measuredDepth: number;
+  readonly worldCoordinate: Coordinate;
+}
+
+export interface WellTrajectoryRenderInput {
+  readonly trajectory: WellTrajectory;
+  readonly settings: WellTrajectoryRenderSettings;
 }

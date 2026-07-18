@@ -2,7 +2,8 @@ import "@kitware/vtk.js/Rendering/Profiles/Geometry";
 
 import { extractReservoirSurface } from "../geometry/surface-extractor";
 import { ReservoirViewer } from "./reservoir-viewer";
-import { createThreeByTwoByTwoPropertyFixture } from "../testing/fixtures";
+import { createSyntheticCrossingWellTrajectories, createThreeByTwoByTwoPropertyFixture } from "../testing/fixtures";
+import { defaultWellTrajectoryRenderSettings } from "./trajectory-render-plan";
 
 const viewport = document.querySelector<HTMLElement>("#reservoir-demo-viewport");
 const status = document.querySelector<HTMLElement>("#reservoir-demo-status");
@@ -35,8 +36,18 @@ viewer.setProperty({
   undefinedVisible: true
 });
 viewer.setRepresentation("surface-with-edges");
+viewer.setWells(createSyntheticCrossingWellTrajectories().map((trajectory, index) => ({
+  trajectory,
+  settings: {
+    ...defaultWellTrajectoryRenderSettings(trajectory.wellId, index === 0 ? [0.96, 0.42, 0.18] : [0.18, 0.82, 0.71]),
+    radius: 0.7,
+    showMdTicks: true,
+    mdTickInterval: 10,
+    clipToReservoirBounds: false
+  }
+})));
 viewer.setGeologicalView("isometric");
-status.textContent = `Synthetic 3x2x2: ${extraction.geometry.statistics.emittedFaceCount} visible faces`;
+status.textContent = `Synthetic 3x2x2: ${extraction.geometry.statistics.emittedFaceCount} visible faces, 2 crossing wells`;
 
 document.querySelectorAll<HTMLButtonElement>("[data-geological-view]").forEach((button) => {
   button.addEventListener("click", () => {

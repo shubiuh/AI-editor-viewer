@@ -8,10 +8,14 @@ import vtkLookupTable from "@kitware/vtk.js/Common/Core/LookupTable";
 import vtkMapper from "@kitware/vtk.js/Rendering/Core/Mapper";
 import vtkPoints from "@kitware/vtk.js/Common/Core/Points";
 import vtkPolyData from "@kitware/vtk.js/Common/DataModel/PolyData";
+import vtkTubeFilter from "@kitware/vtk.js/Filters/General/TubeFilter";
+import vtkTextActor from "@kitware/vtk.js/Rendering/Core/TextActor";
+import vtkTextProperty from "@kitware/vtk.js/Rendering/Core/TextProperty";
 
 import { geologicalCameraPose } from "./camera-presets";
 import { createPropertyScalarPlan, createReservoirRenderPlan, readPropertyValue, type ReservoirRenderPlan } from "./render-plan";
-import type { GeologicalView, IJKClip, ReservoirPickResult, ReservoirProperty, ReservoirRenderGeometry, ReservoirRepresentation, ReservoirVisibility } from "./types";
+import { createTrajectoryPolylinePlan, createTrajectoryTickPlan, findNearestTrajectoryStation } from "./trajectory-render-plan";
+import type { GeologicalView, IJKClip, ReservoirPickResult, ReservoirProperty, ReservoirRenderGeometry, ReservoirRepresentation, ReservoirVisibility, WellTrajectoryPickResult, WellTrajectoryRenderInput } from "./types";
 
 export class ReservoirViewer {
   private container: HTMLElement | undefined;
@@ -28,6 +32,8 @@ export class ReservoirViewer {
   private clip: IJKClip = {};
   private representation: ReservoirRepresentation = "surface";
   private renderPlan: ReservoirRenderPlan | undefined;
+  private wells: readonly WellTrajectoryRenderInput[] = [];
+  private readonly wellEntries: WellRenderEntry[] = [];
 
   public attach(container: HTMLElement): void {
     if (this.container === container && this.genericRenderWindow) {
@@ -46,6 +52,14 @@ export class ReservoirViewer {
   public setGeometry(geometry: ReservoirRenderGeometry): void {
     this.geometry = geometry;
     this.rebuildGeometry();
+    this.rebuildWells();
+  }
+
+  /** Replaces only the well layer; reservoir surface topology is deliberately untouched. */
+  public setWells(wells: readonly WellTrajectoryRenderInput[]): void {
+    this.wells = wells;
+    this.rebuildWells();
+    this.render();
   }
 
   public setProperty(property: ReservoirProperty | undefined): void {
@@ -87,11 +101,21 @@ export class ReservoirViewer {
     this.render();
   }
 
-  public pick(x: number, y: number): ReservoirPickResult | undefined {
+  public pick(x: number, y: number): ReservoirPickResult | WellTrajectoryPickResult | undefined {
     if (!this.genericRenderWindow || !this.geometry || !this.renderPlan) {
       return undefined;
     }
     this.picker.pick([x, y, 0], this.genericRenderWindow.getRenderer());
+    const pickedMapper = this.picker.getMapper();
+    const wellEntry = this.wellEntries.find((entry) => entry.mapper === pickedMapper);
+    if (wellEntry) {
+      const localPosition = this.picker.getPickPosition();
+      return findNearestTrajectoryStation(
+        wellEntry.input.trajectory,
+        [localPosition[0] ?? 0, localPosition[1] ?? 0, localPosition[2] ?? 0],
+        this.geometry.localOrigin
+      );
+    }
     const renderedCellId = this.picker.getCellId();
     if (renderedCellId < 0) {
       return undefined;
@@ -128,6 +152,8 @@ export class ReservoirViewer {
     this.geometry = undefined;
     this.property = undefined;
     this.renderPlan = undefined;
+    this.wells = [];
+    this.removeWells();
     this.removeVtkGeometry();
     this.render();
   }
@@ -165,6 +191,103 @@ export class ReservoirViewer {
     this.applyRepresentation();
     this.updatePropertyScalars();
     this.genericRenderWindow.getRenderer().resetCamera();
+    this.render();
+  }
+
+  private rebuildWells(): void {
+    this.removeWells();
+    if (!this.geometry || !this.genericRenderWindow) {
+      return;
+    }
+    const modelBounds = this.geometry.surface.modelBounds;
+    const bounds: readonly [number, number, number, number, number, number] = [
+      modelBounds[0] ?? 0, modelBounds[1] ?? 0,
+      modelBounds[2] ?? 0, modelBounds[3] ?? 0,
+      modelBounds[4] ?? 0, modelBounds[5] ?? 0
+    ];
+    const renderer = this.genericRenderWindow.getRenderer();
+    for (const input of this.wells) {
+      if (!input.settings.visible) {
+        continue;
+      }
+      const polylinePlan = createTrajectoryPolylinePlan(
+        input.trajectory,
+        this.geometry.localOrigin,
+        input.settings.clipToReservoirBounds ? bounds : undefined
+      );
+      if (polylinePlan.localPoints.length < 6) {
+        continue;
+      }
+      const points = vtkPoints.newInstance();
+      points.setData(polylinePlan.localPoints, 3);
+      const lines = vtkCellArray.newInstance();
+      lines.setData(polylinePlan.vtkLines);
+      const polyData = vtkPolyData.newInstance();
+      polyData.setPoints(points);
+      polyData.setLines(lines);
+      const mapper = vtkMapper.newInstance();
+      const tubeFilter = input.settings.representation === "tube"
+        ? vtkTubeFilter.newInstance({ radius: input.settings.radius, numberOfSides: 12, capping: true })
+        : undefined;
+      if (tubeFilter) {
+        tubeFilter.setInputData(polyData);
+        mapper.setInputConnection(tubeFilter.getOutputPort());
+      } else {
+        mapper.setInputData(polyData);
+      }
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setColor(...input.settings.color);
+      actor.getProperty().setLineWidth(Math.max(1, input.settings.radius * 4));
+      renderer.addActor(actor);
+      const entry: WellRenderEntry = { input, actor, mapper, polyData, tubeFilter };
+
+      if (input.settings.showMdTicks) {
+        const tickPlan = createTrajectoryTickPlan(input.trajectory, this.geometry.localOrigin, input.settings.mdTickInterval, input.settings.radius * 2);
+        if (tickPlan.localPoints.length > 0) {
+          const tickPoints = vtkPoints.newInstance();
+          tickPoints.setData(tickPlan.localPoints, 3);
+          const tickLines = vtkCellArray.newInstance();
+          tickLines.setData(tickPlan.vtkLines);
+          const tickPolyData = vtkPolyData.newInstance();
+          tickPolyData.setPoints(tickPoints);
+          tickPolyData.setLines(tickLines);
+          const tickMapper = vtkMapper.newInstance();
+          tickMapper.setInputData(tickPolyData);
+          const tickActor = vtkActor.newInstance();
+          tickActor.setMapper(tickMapper);
+          tickActor.getProperty().setColor(...input.settings.color);
+          tickActor.getProperty().setLineWidth(1);
+          renderer.addActor(tickActor);
+          entry.tickActor = tickActor;
+          entry.tickMapper = tickMapper;
+          entry.tickPolyData = tickPolyData;
+        }
+      }
+
+      if (input.settings.showLabel) {
+        const labelActor = vtkTextActor.newInstance();
+        labelActor.setInput(input.trajectory.wellName);
+        labelActor.setDisplayPosition(0, 0);
+        const labelProperty = vtkTextProperty.newInstance({
+          fontColor: [...input.settings.color],
+          resolution: 24,
+          shadowColor: [0, 0, 0],
+          shadowBlur: 1,
+          shadowOffset: [1, 1]
+        });
+        labelActor.setProperty(labelProperty);
+        renderer.addActor2D(labelActor);
+        entry.labelActor = labelActor;
+        entry.labelProperty = labelProperty;
+        entry.labelPosition = [
+          (input.trajectory.xyz[0] ?? 0) - this.geometry.localOrigin[0],
+          (input.trajectory.xyz[1] ?? 0) - this.geometry.localOrigin[1],
+          (input.trajectory.xyz[2] ?? 0) - this.geometry.localOrigin[2]
+        ];
+      }
+      this.wellEntries.push(entry);
+    }
     this.render();
   }
 
@@ -217,6 +340,29 @@ export class ReservoirViewer {
     this.lookupTable = undefined;
   }
 
+  private removeWells(): void {
+    const renderer = this.genericRenderWindow?.getRenderer();
+    for (const entry of this.wellEntries) {
+      renderer?.removeActor(entry.actor);
+      if (entry.tickActor) {
+        renderer?.removeActor(entry.tickActor);
+      }
+      if (entry.labelActor) {
+        renderer?.removeActor2D(entry.labelActor);
+      }
+      entry.actor.delete();
+      entry.mapper.delete();
+      entry.polyData.delete();
+      entry.tubeFilter?.delete();
+      entry.tickActor?.delete();
+      entry.tickMapper?.delete();
+      entry.tickPolyData?.delete();
+      entry.labelActor?.delete();
+      entry.labelProperty?.delete();
+    }
+    this.wellEntries.splice(0);
+  }
+
   private detachRenderWindow(): void {
     this.resizeObserver?.disconnect();
     this.resizeObserver = undefined;
@@ -226,6 +372,40 @@ export class ReservoirViewer {
   }
 
   private render(): void {
+    this.updateWellLabels();
     this.genericRenderWindow?.getRenderWindow().render();
   }
+
+  private updateWellLabels(): void {
+    if (!this.genericRenderWindow || !this.container) {
+      return;
+    }
+    const renderer = this.genericRenderWindow.getRenderer();
+    const width = this.container.clientWidth;
+    const height = this.container.clientHeight;
+    if (width === 0 || height === 0) {
+      return;
+    }
+    for (const entry of this.wellEntries) {
+      if (!entry.labelActor || !entry.labelPosition) {
+        continue;
+      }
+      const display = renderer.worldToNormalizedDisplay(...entry.labelPosition, width / height);
+      entry.labelActor.setDisplayPosition(Math.round((display[0] ?? 0) * width) + 8, Math.round((display[1] ?? 0) * height) + 8);
+    }
+  }
+}
+
+interface WellRenderEntry {
+  readonly input: WellTrajectoryRenderInput;
+  readonly actor: ReturnType<typeof vtkActor.newInstance>;
+  readonly mapper: ReturnType<typeof vtkMapper.newInstance>;
+  readonly polyData: ReturnType<typeof vtkPolyData.newInstance>;
+  readonly tubeFilter: ReturnType<typeof vtkTubeFilter.newInstance> | undefined;
+  tickActor?: ReturnType<typeof vtkActor.newInstance>;
+  tickMapper?: ReturnType<typeof vtkMapper.newInstance>;
+  tickPolyData?: ReturnType<typeof vtkPolyData.newInstance>;
+  labelActor?: ReturnType<typeof vtkTextActor.newInstance>;
+  labelProperty?: ReturnType<typeof vtkTextProperty.newInstance>;
+  labelPosition?: readonly [number, number, number];
 }
