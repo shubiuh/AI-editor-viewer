@@ -39,6 +39,7 @@ describe("reservoir case validation", () => {
       },
       grids: [grid],
       propertyCatalog: [],
+      propertyFrames: [],
       wells: [],
       wellLogCurves: [],
       timeStepCatalog: []

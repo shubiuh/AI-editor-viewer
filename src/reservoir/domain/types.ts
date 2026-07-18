@@ -168,6 +168,7 @@ export interface ReservoirCase {
   readonly metadata: CaseMetadata;
   readonly grids: readonly ReservoirGrid[];
   readonly propertyCatalog: readonly PropertyDescriptor[];
+  readonly propertyFrames: readonly PropertyFrame[];
   readonly wells: readonly WellTrajectory[];
   readonly wellLogCurves: readonly WellLogCurve[];
   readonly timeStepCatalog: readonly TimeStepMetadata[];

@@ -1,0 +1,9 @@
+SPECGRID 1 1 1 /
+COORD
+  0 0 0  0 0 1
+  1 0 0  1 0 1
+  0 1 0  0 1 1
+  1 1 0  1 1 1 /
+ZCORN 4*0 4*1 /
+ACTNUM 1 /
+PORO 0.25 /
