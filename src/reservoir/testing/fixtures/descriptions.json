@@ -1,0 +1,26 @@
+[
+  {
+    "id": "orthogonal-1x1x1",
+    "summary": "One active orthogonal cell."
+  },
+  {
+    "id": "orthogonal-2x2x2",
+    "summary": "Eight active orthogonal cells."
+  },
+  {
+    "id": "orthogonal-3x2x2-inactive",
+    "summary": "Twelve cells, one inactive cell, and a scalar property."
+  },
+  {
+    "id": "faulted-corner-point",
+    "summary": "Corner-point cells with a deliberate vertical discontinuity."
+  },
+  {
+    "id": "pinched-cell",
+    "summary": "One zero-thickness degenerate cell."
+  },
+  {
+    "id": "large-map-coordinates",
+    "summary": "Map-scale coordinates for origin-rebasing checks."
+  }
+]
