@@ -1,0 +1,65 @@
+.editor-glance-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.editor-glance-intro {
+  align-items: center;
+  display: flex;
+  justify-content: flex-start;
+  padding: 40px 48px;
+}
+
+.editor-glance-layout > .flex.xs6 {
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  width: auto !important;
+}
+
+.editor-glance-intro__content {
+  max-width: 340px;
+  color: #e2e7e9;
+}
+
+.editor-glance-intro__eyebrow {
+  margin: 0 0 12px;
+  color: #e6a83e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.editor-glance-intro h1 {
+  margin: 0 0 14px;
+  color: #ffffff;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.editor-glance-intro p,
+.editor-glance-intro li {
+  color: #c1c9ce;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.editor-glance-intro ul {
+  margin: 18px 0 0;
+  padding-left: 20px;
+}
+
+.editor-glance-intro code {
+  color: #f1bd65;
+}
+
+@media (max-width: 720px) {
+  .editor-glance-layout {
+    display: block;
+  }
+
+  .editor-glance-intro {
+    display: none;
+  }
+}
