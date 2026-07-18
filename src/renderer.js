@@ -17,6 +17,7 @@ import { createVtkViewer } from "./vtk-viewer.js";
 import { ReservoirViewer } from "./reservoir/rendering/reservoir-viewer";
 import { defaultWellTrajectoryRenderSettings } from "./reservoir/rendering/trajectory-render-plan";
 import { defaultWellLogTrackSettings, SelectedDepthController, supportsDepthMode, WellLogViewer } from "./reservoir/well-log";
+import { DynamicPropertyController, PropertyFrameCache, SyntheticPropertyFrameProvider } from "./reservoir/dynamic-properties";
 import { SurfaceExtractionWorkerClient, SurfaceWorkerCancelledError, SurfaceWorkerInitializationError, SurfaceWorkerRemoteError } from "./reservoir/geometry/surface-worker-client";
 import { GrdeclParserWorkerCancelledError, GrdeclParserWorkerClient } from "./reservoir/formats/grdecl/parser-worker-client";
 import {
@@ -78,6 +79,14 @@ const reservoirWellControls = document.querySelector("#reservoir-well-controls")
 const reservoirLogViewport = document.querySelector("#reservoir-log-viewport");
 const reservoirLogControls = document.querySelector("#reservoir-log-controls");
 const reservoirLogDepthMode = document.querySelector("#reservoir-log-depth-mode");
+const reservoirDynamicEnableButton = document.querySelector("#reservoir-dynamic-enable-button");
+const reservoirDynamicPlayButton = document.querySelector("#reservoir-dynamic-play-button");
+const reservoirDynamicTimeStep = document.querySelector("#reservoir-dynamic-time-step");
+const reservoirDynamicSpeed = document.querySelector("#reservoir-dynamic-speed");
+const reservoirDynamicBudget = document.querySelector("#reservoir-dynamic-budget");
+const reservoirDynamicDroppedPolicy = document.querySelector("#reservoir-dynamic-dropped-policy");
+const reservoirDynamicMissingBehavior = document.querySelector("#reservoir-dynamic-missing-behavior");
+const reservoirDynamicStatus = document.querySelector("#reservoir-dynamic-status");
 const reservoirInspector = document.querySelector("#reservoir-inspector");
 const reservoirProgressPanel = document.querySelector("#reservoir-progress-panel");
 const reservoirProgress = document.querySelector("#reservoir-progress");
@@ -123,6 +132,10 @@ let activeReservoirToken = null;
 let reservoirLoadGeneration = 0;
 let reservoirStage = "Ready";
 let reservoirAttached = false;
+let dynamicProvider = null;
+let dynamicCache = null;
+let dynamicController = null;
+let dynamicLastLoadMs = 0;
 const wellRenderSettings = new Map();
 const wellPalette = [[0.94, 0.37, 0.16], [0.13, 0.77, 0.72], [0.96, 0.76, 0.2], [0.58, 0.72, 0.96]];
 const logRenderSettings = new Map();
@@ -288,6 +301,7 @@ async function loadGrdeclReservoir() {
   }
   ensureReservoirViewer();
   reservoirViewer.clear();
+  disposeDynamicProperties();
   reservoirModel = null;
   wellRenderSettings.clear();
   logRenderSettings.clear();
@@ -364,6 +378,7 @@ async function loadGrdeclReservoir() {
       activityMask,
       localOrigin: parsed.reservoirCase.metadata.localOrigin,
       properties: parsed.reservoirCase.propertyCatalog.map((descriptor) => ({ descriptor, frame: parsed.reservoirCase.propertyFrames.find((frame) => frame.propertyId === descriptor.id) })),
+      dynamicProperties: [],
       wells: parsed.reservoirCase.wells,
       wellLogCurves: parsed.reservoirCase.wellLogCurves,
       surface,
@@ -375,7 +390,7 @@ async function loadGrdeclReservoir() {
     updateReservoirWellControls();
     applyReservoirWells();
     initializeReservoirLogs();
-    replaceReservoirPropertyOptions(reservoirModel.properties);
+    replaceReservoirPropertyOptions(allReservoirProperties());
     reservoirWorkspaceState = setWorkspaceProperty(reservoirWorkspaceState, reservoirModel.properties[0]?.descriptor.id);
     applyReservoirWorkspaceState();
     reservoirWorkspaceState = setWorkspaceReady(reservoirWorkspaceState);
@@ -410,6 +425,14 @@ function applyReservoirWorkspaceState() {
   reservoirViewer.setVisibility(reservoirWorkspaceState.visibility);
   reservoirViewer.setIJKClip(reservoirWorkspaceState.clip);
   reservoirViewer.setRepresentation(reservoirWorkspaceState.representation);
+  const dynamicProperty = reservoirModel.dynamicProperties.find((candidate) => candidate.id === reservoirWorkspaceState.selectedPropertyId);
+  if (dynamicProperty && dynamicController) {
+    if (dynamicController.getState().propertyId !== dynamicProperty.id) {
+      dynamicController.selectProperty(dynamicProperty.id);
+    }
+    return;
+  }
+  dynamicController?.selectProperty(undefined);
   const property = reservoirModel.properties.find((candidate) => candidate.descriptor.id === reservoirWorkspaceState.selectedPropertyId);
   reservoirViewer.setProperty(property?.frame ? {
     values: property.frame.values,
@@ -417,6 +440,89 @@ function applyReservoirWorkspaceState() {
     ...(property.descriptor.range ? { range: property.descriptor.range } : {}),
     undefinedVisible: true
   } : undefined);
+}
+
+function allReservoirProperties() {
+  return [...(reservoirModel?.properties ?? []), ...(reservoirModel?.dynamicProperties ?? []).map((descriptor) => ({ descriptor, frame: undefined }))];
+}
+
+function enableSyntheticDynamicProperties() {
+  if (!reservoirModel) {
+    return;
+  }
+  disposeDynamicProperties();
+  const budget = Number(reservoirDynamicBudget.value);
+  if (!Number.isSafeInteger(budget) || budget < 0) {
+    reservoirDynamicStatus.textContent = "Memory budget must be a non-negative integer number of bytes.";
+    return;
+  }
+  dynamicProvider = new SyntheticPropertyFrameProvider(reservoirModel.dimensions.totalCellCount);
+  dynamicCache = new PropertyFrameCache(dynamicProvider, {
+    memoryBudgetBytes: budget,
+    onPerformanceSample: (sample) => {
+      dynamicLastLoadMs = sample.durationMs;
+      updateDynamicPropertyUI();
+    }
+  });
+  dynamicController = new DynamicPropertyController(dynamicCache, dynamicProvider.timeStepCatalog.length, {
+    droppedFramePolicy: reservoirDynamicDroppedPolicy.value,
+    missingFrameBehavior: reservoirDynamicMissingBehavior.value,
+    onFrame: (frame) => {
+      const descriptor = dynamicProvider.propertyCatalog.find((property) => property.id === frame.propertyId);
+      if (!descriptor || reservoirWorkspaceState.selectedPropertyId !== frame.propertyId) {
+        return;
+      }
+      reservoirViewer.setProperty({
+        values: frame.values,
+        ...(frame.validityMask ? { validityMask: frame.validityMask } : {}),
+        ...(descriptor.range ? { range: descriptor.range } : {}),
+        undefinedVisible: true
+      });
+    },
+    onError: (error) => {
+      reservoirDynamicStatus.textContent = error instanceof Error ? error.message : "Dynamic frame loading failed.";
+    },
+    onState: updateDynamicPropertyUI
+  });
+  reservoirModel.dynamicProperties = dynamicProvider.propertyCatalog;
+  replaceReservoirPropertyOptions(allReservoirProperties());
+  reservoirDynamicTimeStep.replaceChildren();
+  dynamicProvider.timeStepCatalog.forEach((timeStep) => reservoirDynamicTimeStep.add(new Option(timeStep.label ?? `Step ${timeStep.index}`, String(timeStep.index))));
+  reservoirWorkspaceState = setWorkspaceProperty(reservoirWorkspaceState, dynamicProvider.propertyCatalog[0]?.id);
+  applyReservoirWorkspaceState();
+  updateDynamicPropertyUI();
+}
+
+function disposeDynamicProperties() {
+  dynamicController?.dispose();
+  dynamicCache?.clear();
+  dynamicProvider = null;
+  dynamicCache = null;
+  dynamicController = null;
+  if (reservoirModel) {
+    reservoirModel.dynamicProperties = [];
+  }
+  updateDynamicPropertyUI();
+}
+
+function updateDynamicPropertyUI() {
+  const active = Boolean(dynamicController && dynamicCache && dynamicProvider);
+  reservoirDynamicEnableButton.disabled = !reservoirModel;
+  reservoirDynamicPlayButton.disabled = !active;
+  reservoirDynamicTimeStep.disabled = !active;
+  reservoirDynamicSpeed.disabled = !active;
+  reservoirDynamicDroppedPolicy.disabled = !active;
+  reservoirDynamicMissingBehavior.disabled = !active;
+  if (!active) {
+    reservoirDynamicPlayButton.textContent = "Play";
+    reservoirDynamicStatus.textContent = reservoirModel ? "Synthetic dynamic provider is available." : "Load a reservoir first.";
+    return;
+  }
+  const state = dynamicController.getState();
+  const cache = dynamicCache.getStats();
+  reservoirDynamicPlayButton.textContent = state.playing ? "Pause" : "Play";
+  reservoirDynamicTimeStep.value = String(state.timeStepIndex);
+  reservoirDynamicStatus.textContent = `Step ${state.timeStepIndex} | cache ${cache.entries} entries, ${cache.bytes} B | hits ${cache.hits}, misses ${cache.misses} | ${dynamicLastLoadMs.toFixed(1)} ms${state.droppedFrames ? ` | dropped ${state.droppedFrames}` : ""}${state.lastError ? ` | ${state.lastError}` : ""}`;
 }
 
 function applyReservoirWells() {
@@ -706,6 +812,17 @@ reservoirClipInputs.forEach((input) => input.addEventListener("change", () => {
 }));
 reservoirCameraSelect.addEventListener("change", () => reservoirViewer.setGeologicalView(reservoirCameraSelect.value));
 reservoirLogDepthMode.addEventListener("change", () => reservoirLogViewer.setDepthMode(reservoirLogDepthMode.value));
+reservoirDynamicEnableButton.addEventListener("click", enableSyntheticDynamicProperties);
+reservoirDynamicPlayButton.addEventListener("click", () => {
+  if (!dynamicController) {
+    return;
+  }
+  dynamicController.getState().playing ? dynamicController.pause() : dynamicController.play();
+});
+reservoirDynamicTimeStep.addEventListener("change", () => dynamicController?.selectTimeStep(Number(reservoirDynamicTimeStep.value)));
+reservoirDynamicSpeed.addEventListener("change", () => dynamicController?.setPlaybackSpeed(Number(reservoirDynamicSpeed.value)));
+reservoirDynamicDroppedPolicy.addEventListener("change", () => enableSyntheticDynamicProperties());
+reservoirDynamicMissingBehavior.addEventListener("change", () => enableSyntheticDynamicProperties());
 reservoirErrorClearButton.addEventListener("click", () => {
   reservoirWorkspaceState = clearWorkspaceError(reservoirWorkspaceState);
   updateReservoirUI();
@@ -726,6 +843,7 @@ window.addEventListener("beforeunload", () => {
   cancelReservoirLoad();
   grdeclParserWorkerClient.terminate();
   surfaceWorkerClient.terminate();
+  disposeDynamicProperties();
   reservoirLogViewer.dispose();
   reservoirViewer.dispose();
 }, { once: true });

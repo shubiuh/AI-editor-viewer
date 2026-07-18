@@ -226,6 +226,18 @@
                 </section>
 
                 <section class="reservoir-section">
+                  <h2>Dynamic Frames</h2>
+                  <label>Memory budget <input id="reservoir-dynamic-budget" type="number" value="1048576" min="0" step="1" aria-label="Dynamic frame memory budget in bytes" /></label>
+                  <button id="reservoir-dynamic-enable-button" type="button" disabled>Enable Synthetic Frames</button>
+                  <label>Time step <select id="reservoir-dynamic-time-step" aria-label="Dynamic property time step" disabled></select></label>
+                  <label>Speed <input id="reservoir-dynamic-speed" type="number" value="1" min="0.1" step="0.1" aria-label="Playback speed in frames per second" disabled /></label>
+                  <label>Dropped frame <select id="reservoir-dynamic-dropped-policy" aria-label="Dropped frame policy" disabled><option value="drop">Drop</option><option value="queue">Queue</option></select></label>
+                  <label>Missing frame <select id="reservoir-dynamic-missing-behavior" aria-label="Missing frame behavior" disabled><option value="skip">Skip</option><option value="pause">Pause</option></select></label>
+                  <button id="reservoir-dynamic-play-button" type="button" disabled>Play</button>
+                  <output id="reservoir-dynamic-status">Load a reservoir first.</output>
+                </section>
+
+                <section class="reservoir-section">
                   <h2>Clip IJK</h2>
                   <div class="reservoir-clip-grid">
                     <label>I <input id="reservoir-i-min" type="number" value="0" min="0" aria-label="Minimum I" /></label>
