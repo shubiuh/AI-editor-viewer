@@ -19,6 +19,10 @@ npm run dev
 
 The development app uses Vite at `http://127.0.0.1:5173` and opens Electron after the server is ready.
 
+## Reservoir Demo
+
+The application includes a **Reservoir** workspace tab that loads only the generated synthetic `3x2x2` fixture. It has no GRDECL or binary reservoir format support yet. The same standalone development view is available at `http://127.0.0.1:5173/reservoir-demo.html` while `npm run dev` is running.
+
 ## Build
 
 ```bash

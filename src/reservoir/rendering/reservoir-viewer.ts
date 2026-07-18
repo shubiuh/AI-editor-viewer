@@ -105,7 +105,7 @@ export class ReservoirViewer {
     const j = this.geometry.surface.faceIJK[ijkOffset + 1] ?? 0;
     const k = this.geometry.surface.faceIJK[ijkOffset + 2] ?? 0;
     const cellId = this.renderPlan.faceLocalCellIds[renderedCellId] ?? 0;
-    const originalCellId = this.geometry.surface.faceOriginalCellIds[cellId] ?? 0;
+    const originalCellId = this.geometry.surface.faceOriginalCellIds[sourceFaceIndex] ?? 0;
     const localPosition = this.picker.getPickPosition();
     return {
       originalCellId,

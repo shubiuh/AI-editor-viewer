@@ -479,6 +479,141 @@ button {
   height: 100%;
 }
 
+.reservoir-content {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  height: calc(100% - 34px);
+  min-height: 0;
+  background: #0e141a;
+}
+
+.reservoir-controls {
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid #303943;
+  background: #181d22;
+}
+
+.reservoir-section {
+  padding: 11px;
+  border-bottom: 1px solid #303943;
+}
+
+.reservoir-section h2 {
+  margin: 0 0 8px;
+  color: #f1bd65;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.reservoir-section button,
+.reservoir-section select,
+.reservoir-section input {
+  border: 1px solid #3b4651;
+  border-radius: 3px;
+  background: #20272f;
+  color: #d7dce2;
+  font: inherit;
+  font-size: 11px;
+}
+
+.reservoir-section button {
+  margin: 3px 3px 0 0;
+  padding: 5px 7px;
+  cursor: pointer;
+}
+
+.reservoir-section button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.reservoir-section label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 5px 0;
+  color: #b8c1ca;
+  font-size: 11px;
+}
+
+.reservoir-section select {
+  min-width: 120px;
+  padding: 4px;
+}
+
+.reservoir-checkbox {
+  justify-content: flex-start !important;
+}
+
+.reservoir-checkbox input {
+  accent-color: #d29a45;
+}
+
+.reservoir-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin: 0 0 7px;
+}
+
+.reservoir-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reservoir-summary dt {
+  color: #7f8d99;
+  font-size: 10px;
+}
+
+.reservoir-summary dd {
+  margin: 0;
+  color: #d7dce2;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+}
+
+.reservoir-clip-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 6px;
+}
+
+.reservoir-clip-grid input {
+  width: 48px;
+  padding: 3px;
+}
+
+.reservoir-inspector output,
+.reservoir-section output {
+  display: block;
+  color: #b8c1ca;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.reservoir-section progress {
+  width: 100%;
+  accent-color: #d29a45;
+}
+
+.reservoir-error {
+  border-left: 2px solid #ce6659;
+  background: #271c1d;
+}
+
+.reservoir-render-window {
+  min-width: 0;
+  min-height: 0;
+}
+
 .workspace-search {
   display: flex;
   align-items: center;
@@ -624,6 +759,10 @@ button {
   .workspace {
     height: calc(100% - 142px);
     grid-template-columns: 180px 5px minmax(0, 1fr);
+  }
+
+  .reservoir-content {
+    grid-template-columns: 180px minmax(0, 1fr);
   }
 
 }

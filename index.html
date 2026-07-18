@@ -157,6 +157,7 @@
             <button class="render-tab active" data-render-tab="editor" type="button" role="tab" aria-selected="true">Editor</button>
             <button class="render-tab" data-render-tab="vtk" type="button" role="tab" aria-selected="false">VTK</button>
             <button class="render-tab" data-render-tab="glance" type="button" role="tab" aria-selected="false">Glance</button>
+            <button class="render-tab" data-render-tab="reservoir" type="button" role="tab" aria-selected="false">Reservoir</button>
           </div>
 
           <section class="dock-panel editor-dock render-panel is-render-active" id="editor-dock" aria-label="Editor dock">
@@ -187,6 +188,86 @@
                 <strong>VTK 3D Render Window</strong>
                 <span>Open a legacy .vtk dataset from the View ribbon.</span>
               </div>
+            </div>
+          </section>
+
+          <section class="dock-panel reservoir-dock render-panel" id="reservoir-dock" aria-label="Reservoir viewer dock">
+            <div class="dock-header">
+              <span class="dock-title"><span aria-hidden="true">◇</span> Reservoir</span>
+              <div class="dock-actions">
+                <span id="reservoir-status" class="vtk-file-name">Synthetic fixture</span>
+              </div>
+            </div>
+            <div class="reservoir-content">
+              <aside class="reservoir-controls" aria-label="Reservoir controls">
+                <section class="reservoir-section">
+                  <h2>Model</h2>
+                  <dl id="reservoir-summary" class="reservoir-summary">
+                    <div><dt>Grid</dt><dd>Not loaded</dd></div>
+                    <div><dt>Cells</dt><dd>-</dd></div>
+                    <div><dt>Active</dt><dd>-</dd></div>
+                    <div><dt>Faces</dt><dd>-</dd></div>
+                  </dl>
+                  <button id="reservoir-load-button" type="button">Load synthetic 3x2x2</button>
+                  <button id="reservoir-cancel-button" type="button" disabled>Cancel</button>
+                </section>
+
+                <section class="reservoir-section">
+                  <h2>Property</h2>
+                  <label>Color by
+                    <select id="reservoir-property-select" aria-label="Reservoir property">
+                      <option value="none">None</option>
+                      <option value="synthetic-porosity">Synthetic porosity</option>
+                    </select>
+                  </label>
+                  <label class="reservoir-checkbox"><input id="reservoir-active-toggle" type="checkbox" checked /> Active surfaces</label>
+                  <label class="reservoir-checkbox"><input id="reservoir-inactive-toggle" type="checkbox" checked /> Inactive boundaries</label>
+                  <label class="reservoir-checkbox"><input id="reservoir-edges-toggle" type="checkbox" checked /> Edges</label>
+                </section>
+
+                <section class="reservoir-section">
+                  <h2>Clip IJK</h2>
+                  <div class="reservoir-clip-grid">
+                    <label>I <input id="reservoir-i-min" type="number" value="0" min="0" aria-label="Minimum I" /></label>
+                    <label>to <input id="reservoir-i-max" type="number" value="2" min="0" aria-label="Maximum I" /></label>
+                    <label>J <input id="reservoir-j-min" type="number" value="0" min="0" aria-label="Minimum J" /></label>
+                    <label>to <input id="reservoir-j-max" type="number" value="1" min="0" aria-label="Maximum J" /></label>
+                    <label>K <input id="reservoir-k-min" type="number" value="0" min="0" aria-label="Minimum K" /></label>
+                    <label>to <input id="reservoir-k-max" type="number" value="1" min="0" aria-label="Maximum K" /></label>
+                  </div>
+                </section>
+
+                <section class="reservoir-section">
+                  <h2>Camera</h2>
+                  <select id="reservoir-camera-select" aria-label="Geological camera preset">
+                    <option value="isometric">Isometric</option>
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="north">North</option>
+                    <option value="south">South</option>
+                    <option value="east">East</option>
+                    <option value="west">West</option>
+                  </select>
+                </section>
+
+                <section class="reservoir-section reservoir-inspector">
+                  <h2>Selected Cell</h2>
+                  <output id="reservoir-inspector">Click a visible face to inspect it.</output>
+                </section>
+
+                <section id="reservoir-progress-panel" class="reservoir-section" hidden>
+                  <h2>Progress</h2>
+                  <progress id="reservoir-progress" max="1" value="0"></progress>
+                  <output id="reservoir-progress-text">Waiting</output>
+                </section>
+
+                <section id="reservoir-error-panel" class="reservoir-section reservoir-error" hidden>
+                  <h2>Reservoir Error</h2>
+                  <output id="reservoir-error-text"></output>
+                  <button id="reservoir-error-clear-button" type="button">Clear error</button>
+                </section>
+              </aside>
+              <div id="reservoir-render-window" class="reservoir-render-window" aria-label="Synthetic reservoir 3D viewer"></div>
             </div>
           </section>
         </div>

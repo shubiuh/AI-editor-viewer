@@ -33,7 +33,7 @@ describe("reservoir render planning", () => {
   it("maps cell properties to point scalars and represents undefined values as NaN", () => {
     const { fixture, geometry } = renderGeometry();
     const plan = createReservoirRenderPlan(geometry);
-    const validityMask = new Uint8Array(fixture.property?.frame.validityMask);
+    const validityMask = new Uint8Array(fixture.property?.frame.validityMask ?? []);
     validityMask[0] = 0;
     const scalars = createPropertyScalarPlan(plan, {
       values: fixture.property?.frame.values ?? new Float32Array(),
