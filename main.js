@@ -5,7 +5,7 @@ const { ReservoirFileSessionStore } = require("./electron/reservoir-file-session
 
 const isDevelopment = !app.isPackaged;
 const reservoirFileSessions = new ReservoirFileSessionStore({ fs });
-const developmentUrl = process.env.ELECTRON_RENDERER_URL || "http://127.0.0.1:5173";
+const developmentUrl = process.env.ELECTRON_RENDERER_URL || "http://127.0.0.1:5174";
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -267,7 +267,7 @@ ipcMain.handle("reservoir:file-open", async () => {
     title: "Open reservoir file",
     properties: ["openFile"],
     filters: [
-      { name: "Reservoir data files", extensions: ["egrid", "init", "unrst", "grdecl", "grid", "data"] },
+      { name: "ASCII GRDECL grid files", extensions: ["grdecl", "grid", "data"] },
       { name: "All files", extensions: ["*"] }
     ]
   });

@@ -15,8 +15,8 @@ import {
 } from "./editor-themes.js";
 import { createVtkViewer } from "./vtk-viewer.js";
 import { ReservoirViewer } from "./reservoir/rendering/reservoir-viewer";
-import { SurfaceExtractionWorkerClient, SurfaceWorkerCancelledError } from "./reservoir/geometry/surface-worker-client";
-import { createThreeByTwoByTwoPropertyFixture } from "./reservoir/testing/fixtures";
+import { SurfaceExtractionWorkerClient, SurfaceWorkerCancelledError, SurfaceWorkerInitializationError, SurfaceWorkerRemoteError } from "./reservoir/geometry/surface-worker-client";
+import { GrdeclParserWorkerCancelledError, GrdeclParserWorkerClient } from "./reservoir/formats/grdecl/parser-worker-client";
 import {
   clearWorkspaceError,
   createReservoirWorkspaceState,
@@ -79,6 +79,7 @@ const reservoirProgressText = document.querySelector("#reservoir-progress-text")
 const reservoirErrorPanel = document.querySelector("#reservoir-error-panel");
 const reservoirErrorText = document.querySelector("#reservoir-error-text");
 const reservoirErrorClearButton = document.querySelector("#reservoir-error-clear-button");
+const reservoirWarnings = document.querySelector("#reservoir-warnings");
 const reservoirClipInputs = [
   document.querySelector("#reservoir-i-min"), document.querySelector("#reservoir-i-max"),
   document.querySelector("#reservoir-j-min"), document.querySelector("#reservoir-j-max"),
@@ -103,9 +104,14 @@ const vtkViewer = createVtkViewer(
 );
 const reservoirViewer = new ReservoirViewer();
 const surfaceWorkerClient = new SurfaceExtractionWorkerClient();
+const grdeclParserWorkerClient = new GrdeclParserWorkerClient();
 let reservoirWorkspaceState = createReservoirWorkspaceState();
-let reservoirFixture = null;
+let reservoirModel = null;
 let reservoirTask = null;
+let reservoirParseTask = null;
+let activeReservoirToken = null;
+let reservoirLoadGeneration = 0;
+let reservoirStage = "Ready";
 let reservoirAttached = false;
 initializeDockLayout();
 new ResizeObserver(() => vtkViewer.resize()).observe(
@@ -192,9 +198,6 @@ function selectRenderTab(tabName) {
     if (isReservoir) {
       ensureReservoirViewer();
       reservoirViewer.resize();
-      if (reservoirWorkspaceState.status === "idle") {
-        loadSyntheticReservoir();
-      }
     }
   });
 }
@@ -228,81 +231,155 @@ function ensureReservoirViewer() {
 
 function updateReservoirUI() {
   const state = reservoirWorkspaceState;
-  reservoirStatus.textContent = state.status === "loading" ? "Extracting surface" : state.status;
+  reservoirStatus.textContent = state.status === "loading" ? reservoirStage : state.status;
   reservoirCancelButton.disabled = state.status !== "loading";
   reservoirProgressPanel.hidden = state.status !== "loading";
   reservoirProgress.value = state.progress;
   reservoirProgressText.textContent = `${Math.round(state.progress * 100)}%`;
   reservoirErrorPanel.hidden = !state.error;
   reservoirErrorText.textContent = state.error ?? "";
-  if (!reservoirFixture || !reservoirSummary) {
+  reservoirWarnings.hidden = !reservoirModel?.warnings.length;
+  reservoirWarnings.textContent = reservoirModel?.warnings.map((warning) => `${warning.keyword} at ${warning.location.line}:${warning.location.column}: ${warning.message}`).join("\n") ?? "";
+  if (!reservoirModel || !reservoirSummary) {
     return;
   }
-  const cells = reservoirFixture.expected.totalCellCount;
-  const active = reservoirFixture.expected.activeCellCount;
-  const faces = reservoirFixture.surface?.statistics.emittedFaceCount ?? "-";
+  const { dimensions, surface, warnings, parsingDurationMs, geometryDurationMs } = reservoirModel;
   reservoirSummary.innerHTML = `
-    <div><dt>Grid</dt><dd>${reservoirFixture.expected.dimensions.nx} x ${reservoirFixture.expected.dimensions.ny} x ${reservoirFixture.expected.dimensions.nz}</dd></div>
-    <div><dt>Cells</dt><dd>${cells}</dd></div>
-    <div><dt>Active</dt><dd>${active}</dd></div>
-    <div><dt>Faces</dt><dd>${faces}</dd></div>`;
+    <div><dt>Grid</dt><dd>${dimensions.nx} x ${dimensions.ny} x ${dimensions.nz}</dd></div>
+    <div><dt>Cells</dt><dd>${dimensions.totalCellCount}</dd></div>
+    <div><dt>Active</dt><dd>${surface.statistics.activeCellCount}</dd></div>
+    <div><dt>Faces</dt><dd>${surface.statistics.emittedFaceCount}</dd></div>
+    <div><dt>Bounds</dt><dd>${formatBounds(surface.modelBounds)}</dd></div>
+    <div><dt>Parsing</dt><dd>${formatDuration(parsingDurationMs)}</dd></div>
+    <div><dt>Geometry</dt><dd>${formatDuration(geometryDurationMs)}</dd></div>
+    <div><dt>Properties</dt><dd>${reservoirModel.properties.map((property) => property.descriptor.keyword).join(", ") || "None"}</dd></div>
+    <div><dt>Warnings</dt><dd>${warnings.length}</dd></div>`;
 }
 
-function loadSyntheticReservoir() {
-  if (reservoirWorkspaceState.status === "loading") {
+async function loadGrdeclReservoir() {
+  cancelReservoirLoad();
+  const generation = ++reservoirLoadGeneration;
+  const reservoirFiles = window.electronAPI?.reservoirFiles;
+  if (!reservoirFiles) {
+    reservoirWorkspaceState = setWorkspaceError(reservoirWorkspaceState, "File access is only available in the Electron application.");
+    updateReservoirUI();
     return;
   }
   ensureReservoirViewer();
-  reservoirFixture = createThreeByTwoByTwoPropertyFixture();
-  if (reservoirFixture.grid.kind !== "corner-point") {
-    return;
-  }
+  reservoirViewer.clear();
+  reservoirModel = null;
+  replaceReservoirPropertyOptions([]);
+  reservoirStage = "Selecting GRDECL file";
   reservoirWorkspaceState = setWorkspaceLoading(reservoirWorkspaceState);
   updateReservoirUI();
-  reservoirTask = surfaceWorkerClient.extract(
-    { kind: "corner-point", geometry: reservoirFixture.grid.geometry },
-    { progressIntervalCells: 1 },
-    (progress) => {
-      reservoirWorkspaceState = setWorkspaceProgress(reservoirWorkspaceState, progress.fraction);
-      updateReservoirUI();
-    }
-  );
-  reservoirTask.result.then((surface) => {
-    if (!reservoirFixture) {
+  let token;
+  try {
+    const opened = await reservoirFiles.open();
+    if (!isCurrentReservoirLoad(generation)) {
       return;
     }
-    reservoirFixture.surface = surface;
-    reservoirViewer.setGeometry({
-      surface,
-      dimensions: reservoirFixture.expected.dimensions,
-      localOrigin: reservoirFixture.localOrigin,
-      ...(reservoirFixture.grid.geometry.activityMask ? { activityMask: reservoirFixture.grid.geometry.activityMask } : {})
+    if (opened.canceled) {
+      reservoirWorkspaceState = { ...reservoirWorkspaceState, status: "idle", progress: 0 };
+      reservoirStage = "Ready";
+      updateReservoirUI();
+      return;
+    }
+    if (!opened.metadata) {
+      throw new Error(opened.error?.message || "The selected reservoir file could not be opened.");
+    }
+    const metadata = opened.metadata;
+    token = metadata.token;
+    activeReservoirToken = token;
+    if (!isSupportedGrdeclExtension(metadata.extension)) {
+      throw new Error(`Unsupported reservoir file type: ${metadata.extension || "no extension"}. Select an ASCII .grdecl, .grid, or .data file.`);
+    }
+    const parsingStarted = performance.now();
+    reservoirStage = "Parsing GRDECL";
+    reservoirParseTask = grdeclParserWorkerClient.start((fraction) => {
+      if (isCurrentReservoirLoad(generation)) {
+        reservoirWorkspaceState = setWorkspaceProgress(reservoirWorkspaceState, fraction * 0.5);
+        updateReservoirUI();
+      }
     });
+    await streamReservoirFile(reservoirFiles, metadata, reservoirParseTask, generation);
+    const parsed = await reservoirParseTask.finish();
+    reservoirParseTask = null;
+    if (!isCurrentReservoirLoad(generation)) {
+      return;
+    }
+    const parsingDurationMs = performance.now() - parsingStarted;
+    const grid = parsed.reservoirCase.grids[0];
+    if (!grid || grid.kind !== "corner-point") {
+      throw new Error("Parser did not produce a corner-point grid.");
+    }
+    const activityMask = grid.geometry.activityMask?.slice();
+    const geometryStarted = performance.now();
+    reservoirStage = "Extracting visible faces";
+    reservoirWorkspaceState = setWorkspaceProgress(reservoirWorkspaceState, 0.5);
+    updateReservoirUI();
+    reservoirTask = surfaceWorkerClient.extract(
+      { kind: "corner-point", geometry: grid.geometry },
+      { progressIntervalCells: 8_192 },
+      (progress) => {
+        if (isCurrentReservoirLoad(generation)) {
+          reservoirWorkspaceState = setWorkspaceProgress(reservoirWorkspaceState, 0.5 + progress.fraction * 0.5);
+          updateReservoirUI();
+        }
+      }
+    );
+    const surface = await reservoirTask.result;
+    reservoirTask = null;
+    if (!isCurrentReservoirLoad(generation)) {
+      return;
+    }
+    reservoirModel = {
+      dimensions: grid.geometry.dimensions,
+      activityMask,
+      localOrigin: parsed.reservoirCase.metadata.localOrigin,
+      properties: parsed.reservoirCase.propertyCatalog.map((descriptor) => ({ descriptor, frame: parsed.reservoirCase.propertyFrames.find((frame) => frame.propertyId === descriptor.id) })),
+      surface,
+      warnings: parsed.warnings,
+      parsingDurationMs,
+      geometryDurationMs: performance.now() - geometryStarted
+    };
+    reservoirViewer.setGeometry({ surface, dimensions: reservoirModel.dimensions, localOrigin: reservoirModel.localOrigin, ...(activityMask ? { activityMask } : {}) });
+    replaceReservoirPropertyOptions(reservoirModel.properties);
+    reservoirWorkspaceState = setWorkspaceProperty(reservoirWorkspaceState, reservoirModel.properties[0]?.descriptor.id);
     applyReservoirWorkspaceState();
     reservoirWorkspaceState = setWorkspaceReady(reservoirWorkspaceState);
+    reservoirStage = "Ready";
     updateReservoirUI();
-    setStatus("Synthetic reservoir loaded");
-  }).catch((error) => {
-    reservoirWorkspaceState = error instanceof SurfaceWorkerCancelledError
-      ? { ...reservoirWorkspaceState, status: "cancelled", progress: 0 }
-      : setWorkspaceError(reservoirWorkspaceState, error.message || "Reservoir surface extraction failed.");
-    updateReservoirUI();
-  }).finally(() => {
+    setStatus(`Loaded reservoir grid: ${metadata.fileName}`);
+  } catch (error) {
+    if (!isCurrentReservoirLoad(generation)) {
+      return;
+    }
+    reservoirParseTask = null;
     reservoirTask = null;
-  });
+    reservoirWorkspaceState = error instanceof GrdeclParserWorkerCancelledError || error instanceof SurfaceWorkerCancelledError
+      ? { ...reservoirWorkspaceState, status: "cancelled", progress: 0 }
+      : setWorkspaceError(reservoirWorkspaceState, formatReservoirError(error));
+    reservoirStage = "Import stopped";
+    updateReservoirUI();
+  } finally {
+    if (token) {
+      await reservoirFiles.release(token);
+      if (activeReservoirToken === token) {
+        activeReservoirToken = null;
+      }
+    }
+  }
 }
 
 function applyReservoirWorkspaceState() {
-  if (!reservoirFixture?.surface) {
+  if (!reservoirModel?.surface) {
     return;
   }
   reservoirViewer.setVisibility(reservoirWorkspaceState.visibility);
   reservoirViewer.setIJKClip(reservoirWorkspaceState.clip);
   reservoirViewer.setRepresentation(reservoirWorkspaceState.representation);
-  const property = reservoirWorkspaceState.selectedPropertyId === "synthetic-porosity"
-    ? reservoirFixture.property
-    : undefined;
-  reservoirViewer.setProperty(property ? {
+  const property = reservoirModel.properties.find((candidate) => candidate.descriptor.id === reservoirWorkspaceState.selectedPropertyId);
+  reservoirViewer.setProperty(property?.frame ? {
     values: property.frame.values,
     ...(property.frame.validityMask ? { validityMask: property.frame.validityMask } : {}),
     ...(property.descriptor.range ? { range: property.descriptor.range } : {}),
@@ -310,17 +387,81 @@ function applyReservoirWorkspaceState() {
   } : undefined);
 }
 
+async function streamReservoirFile(reservoirFiles, metadata, parserTask, generation) {
+  const chunkSize = 1024 * 1024;
+  for (let offset = 0; offset < metadata.size; offset += chunkSize) {
+    if (!isCurrentReservoirLoad(generation)) {
+      throw new GrdeclParserWorkerCancelledError();
+    }
+    const length = Math.min(chunkSize, metadata.size - offset);
+    const read = await reservoirFiles.readRange(metadata.token, offset, length);
+    if (!read.ok) {
+      throw new Error(`File read error: ${read.error.message}`);
+    }
+    await parserTask.write(read.data, offset + length, metadata.size);
+  }
+}
+
+function cancelReservoirLoad() {
+  if (reservoirWorkspaceState.status !== "loading") {
+    return;
+  }
+  reservoirLoadGeneration += 1;
+  grdeclParserWorkerClient.cancel();
+  if (reservoirTask) {
+    surfaceWorkerClient.cancel(reservoirTask.requestId);
+  }
+  if (activeReservoirToken) {
+    window.electronAPI?.reservoirFiles?.release(activeReservoirToken);
+    activeReservoirToken = null;
+  }
+  reservoirWorkspaceState = { ...reservoirWorkspaceState, status: "cancelled", progress: 0 };
+  reservoirStage = "Cancelled";
+  updateReservoirUI();
+}
+
+function replaceReservoirPropertyOptions(properties) {
+  reservoirPropertySelect.replaceChildren(new Option("None", "none"));
+  for (const { descriptor } of properties) {
+    reservoirPropertySelect.add(new Option(descriptor.displayName, descriptor.id));
+  }
+}
+
+function isCurrentReservoirLoad(generation) {
+  return generation === reservoirLoadGeneration;
+}
+
+function isSupportedGrdeclExtension(extension) {
+  return [".grdecl", ".grid", ".data"].includes(extension.toLowerCase());
+}
+
+function formatReservoirError(error) {
+  const message = error instanceof Error ? error.message : "Unknown reservoir import failure.";
+  if (error?.name === "GrdeclParserWorkerRemoteError") {
+    const location = error.location ? ` at ${error.location.line}:${error.location.column}` : "";
+    return `Parsing error${location}: ${message}`;
+  }
+  if (error instanceof SurfaceWorkerRemoteError || error instanceof SurfaceWorkerInitializationError) {
+    return `Geometry error: ${message}`;
+  }
+  return `File/import error: ${message}`;
+}
+
+function formatDuration(durationMs) {
+  return `${Math.round(durationMs)} ms`;
+}
+
+function formatBounds(bounds) {
+  return `X ${bounds[0].toFixed(2)}..${bounds[1].toFixed(2)}, Y ${bounds[2].toFixed(2)}..${bounds[3].toFixed(2)}, Z ${bounds[4].toFixed(2)}..${bounds[5].toFixed(2)}`;
+}
+
 function readClip() {
   const values = reservoirClipInputs.map((input) => Number(input.value));
   return { i: [values[0], values[1]], j: [values[2], values[3]], k: [values[4], values[5]] };
 }
 
-reservoirLoadButton.addEventListener("click", loadSyntheticReservoir);
-reservoirCancelButton.addEventListener("click", () => {
-  if (reservoirTask) {
-    surfaceWorkerClient.cancel(reservoirTask.requestId);
-  }
-});
+reservoirLoadButton.addEventListener("click", loadGrdeclReservoir);
+reservoirCancelButton.addEventListener("click", cancelReservoirLoad);
 reservoirPropertySelect.addEventListener("change", () => {
   reservoirWorkspaceState = setWorkspaceProperty(reservoirWorkspaceState, reservoirPropertySelect.value === "none" ? undefined : reservoirPropertySelect.value);
   applyReservoirWorkspaceState();
@@ -354,6 +495,8 @@ reservoirRenderWindow.addEventListener("click", (event) => {
     : "No cell selected.";
 });
 window.addEventListener("beforeunload", () => {
+  cancelReservoirLoad();
+  grdeclParserWorkerClient.terminate();
   surfaceWorkerClient.terminate();
   reservoirViewer.dispose();
 }, { once: true });

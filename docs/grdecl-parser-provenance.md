@@ -14,7 +14,7 @@ These references are used only for format facts: slash-terminated keyword blocks
 - `SPECGRID` accepts three dimensions or the common five-field form; only the first three dimensions are retained.
 - `DIMENS` accepts exactly `NX NY NZ`.
 - `COORD` contains `6 * (NX + 1) * (NY + 1)` Float64 values, ordered by increasing `I` within increasing `J`: top XYZ then bottom XYZ per pillar.
-- `ZCORN` contains `8 * NX * NY * NZ` Float64 depth values using the repository structured cell order $cellId = i + NX(j + NYk)$.
+- Raw `ZCORN` stores a doubled structured lattice with dimensions `2 * NX`, `2 * NY`, and `2 * NZ`, traversed with doubled `I` fastest. The parser converts it to eight contiguous depths per repository cell in this order: top `I-,J-`; top `I+,J-`; top `I+,J+`; top `I-,J+`; then the same four corners at the bottom. Cells use $cellId = i + NX(j + NYk)$.
 - `ACTNUM` and supported property blocks contain exactly one value per structured cell in that same order.
 
 `ACTNUM` is optional in this subset; when absent, all cells are active. Default repetitions in geometry and `ACTNUM` are rejected because this subset does not infer their values. Default repetitions in properties are preserved as `NaN` with a zero validity-mask entry.

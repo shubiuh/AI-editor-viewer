@@ -50,6 +50,33 @@ describe("GRDECL semantic subset parser", () => {
     expect(parsed.reservoirCase.propertyCatalog).toHaveLength(1);
   });
 
+  it("accepts standard SPECGRID reservoir and coordinate-system metadata", async () => {
+    const text = `SPECGRID 1 1 1 1 F / COORD ${coordValues(1, 1, 1)} / ZCORN 4*0 4*1 /`;
+    const parsed = await parseGrdecl([text]);
+    const grid = parsed.reservoirCase.grids[0];
+
+    expect(grid).toMatchObject({ kind: "corner-point" });
+    if (!grid || grid.kind !== "corner-point") {
+      throw new Error("Parsed grid invariant failed.");
+    }
+    expect(grid.geometry.dimensions).toMatchObject({ nx: 1, ny: 1, nz: 1, totalCellCount: 1 });
+  });
+
+  it("converts raw ZCORN lattice values into contiguous cell corners", async () => {
+    const rawZcorn = "0 1 2 3 10 11 12 13 100 101 102 103 110 111 112 113";
+    const text = `DIMENS 2 1 1 / COORD ${coordValues(2, 1, 1)} / ZCORN ${rawZcorn} /`;
+    const parsed = await parseGrdecl([text]);
+    const grid = parsed.reservoirCase.grids[0];
+
+    if (!grid || grid.kind !== "corner-point") {
+      throw new Error("Parsed grid invariant failed.");
+    }
+    expect(grid.geometry.cornerDepths).toEqual(new Float64Array([
+      0, 1, 11, 10, 100, 101, 111, 110,
+      2, 3, 13, 12, 102, 103, 113, 112
+    ]));
+  });
+
   it("preserves default property repetitions with a validity mask", async () => {
     const text = `SPECGRID 1 1 1 / COORD ${coordValues(1, 1, 1)} / ZCORN 4*0 4*1 / PORO 1* /`;
     const parsed = await parseGrdecl([text]);

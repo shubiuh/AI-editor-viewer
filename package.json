@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm:dev:vite\" \"npm:dev:electron\"",
     "dev:vite": "vite --host 127.0.0.1",
-    "dev:electron": "wait-on http://127.0.0.1:5173 && electron .",
+    "dev:electron": "wait-on http://127.0.0.1:5174 && electron .",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.electron.json",
     "test": "vitest run",
@@ -46,6 +46,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "electron/**/*",
       "package.json",
       "dist/**/*"
     ],

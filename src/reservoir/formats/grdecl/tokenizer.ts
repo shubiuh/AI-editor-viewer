@@ -7,7 +7,7 @@ import type {
 } from "./types";
 
 const defaultLimits: GrdeclTokenizerLimits = {
-  maxTokenCount: 1_000_000,
+  maxTokenCount: 5_000_000,
   maxRepetitionCount: 10_000_000,
   maxNumericValues: 100_000_000
 };
@@ -73,16 +73,40 @@ export class GrdeclTokenizer {
   private scan(isFinal: boolean): GrdeclToken[] {
     const tokens: GrdeclToken[] = [];
     let index = 0;
+    let line = this.line;
+    let column = this.column;
+    let offset = this.offset;
+
+    const advance = (end: number) => {
+      while (index < end) {
+        const character = this.buffer[index] ?? "";
+        offset += 1;
+        if (character === "\r") {
+          if (this.buffer[index + 1] === "\n" && index + 1 < end) {
+            index += 1;
+            offset += 1;
+          }
+          line += 1;
+          column = 1;
+        } else if (character === "\n") {
+          line += 1;
+          column = 1;
+        } else {
+          column += 1;
+        }
+        index += 1;
+      }
+    };
 
     while (index < this.buffer.length) {
-      this.throwIfCancelled();
+      const location = { line, column, offset };
+      this.throwIfCancelled(location);
       const current = this.buffer[index] ?? "";
       if (isWhitespace(current)) {
-        index += 1;
+        advance(current === "\r" && this.buffer[index + 1] === "\n" ? index + 2 : index + 1);
         continue;
       }
 
-      const location = this.currentLocationAfter(index);
       if (current === "-" && this.buffer[index + 1] === "-") {
         const newlineIndex = findNewline(this.buffer, index + 2);
         if (newlineIndex < 0 && !isFinal) {
@@ -91,13 +115,13 @@ export class GrdeclTokenizer {
         const end = newlineIndex < 0 ? this.buffer.length : newlineIndex;
         const raw = this.buffer.slice(index, end);
         tokens.push(this.emit({ kind: "comment", value: raw.slice(2), raw, location }));
-        index = end;
+        advance(end);
         continue;
       }
 
       if (current === "/") {
         tokens.push(this.emit({ kind: "slash", raw: "/", location }));
-        index += 1;
+        advance(index + 1);
         continue;
       }
 
@@ -107,7 +131,7 @@ export class GrdeclTokenizer {
           break;
         }
         tokens.push(this.emit(quoted.token));
-        index = quoted.end;
+        advance(quoted.end);
         continue;
       }
 
@@ -117,7 +141,7 @@ export class GrdeclTokenizer {
       }
       const raw = this.buffer.slice(index, end);
       tokens.push(this.emit(this.classifyLexeme(raw, location)));
-      index = end;
+      advance(end);
     }
 
     this.consume(index);
@@ -224,37 +248,13 @@ export class GrdeclTokenizer {
     this.buffer = this.buffer.slice(count);
   }
 
-  private currentLocationAfter(index: number): GrdeclLocation {
-    let line = this.line;
-    let column = this.column;
-    let offset = this.offset;
-    for (let cursor = 0; cursor < index; cursor += 1) {
-      const character = this.buffer[cursor] ?? "";
-      offset += 1;
-      if (character === "\r") {
-        if (this.buffer[cursor + 1] === "\n") {
-          cursor += 1;
-          offset += 1;
-        }
-        line += 1;
-        column = 1;
-      } else if (character === "\n") {
-        line += 1;
-        column = 1;
-      } else {
-        column += 1;
-      }
-    }
-    return { line, column, offset };
-  }
-
-  private throwIfCancelled(): void {
+  private throwIfCancelled(location: GrdeclLocation): void {
     if (this.shouldCancel()) {
-      throw this.error("cancelled", "GRDECL tokenization was cancelled.");
+      throw this.error("cancelled", "GRDECL tokenization was cancelled.", location);
     }
   }
 
-  private error(code: GrdeclLexicalErrorCode, message: string, location = this.currentLocationAfter(0)): GrdeclLexicalError {
+  private error(code: GrdeclLexicalErrorCode, message: string, location: GrdeclLocation = { line: this.line, column: this.column, offset: this.offset }): GrdeclLexicalError {
     return new GrdeclLexicalError(code, message, location);
   }
 }

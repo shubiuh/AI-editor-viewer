@@ -196,7 +196,7 @@
             <div class="dock-header">
               <span class="dock-title"><span aria-hidden="true">◇</span> Reservoir</span>
               <div class="dock-actions">
-                <span id="reservoir-status" class="vtk-file-name">Synthetic fixture</span>
+                <span id="reservoir-status" class="vtk-file-name">No model loaded</span>
               </div>
             </div>
             <div class="reservoir-content">
@@ -209,7 +209,7 @@
                     <div><dt>Active</dt><dd>-</dd></div>
                     <div><dt>Faces</dt><dd>-</dd></div>
                   </dl>
-                  <button id="reservoir-load-button" type="button">Load synthetic 3x2x2</button>
+                  <button id="reservoir-load-button" type="button">Open ASCII Grid</button>
                   <button id="reservoir-cancel-button" type="button" disabled>Cancel</button>
                 </section>
 
@@ -218,7 +218,6 @@
                   <label>Color by
                     <select id="reservoir-property-select" aria-label="Reservoir property">
                       <option value="none">None</option>
-                      <option value="synthetic-porosity">Synthetic porosity</option>
                     </select>
                   </label>
                   <label class="reservoir-checkbox"><input id="reservoir-active-toggle" type="checkbox" checked /> Active surfaces</label>
@@ -267,8 +266,10 @@
                   <output id="reservoir-error-text"></output>
                   <button id="reservoir-error-clear-button" type="button">Clear error</button>
                 </section>
+
+                <section id="reservoir-warnings" class="reservoir-section" hidden aria-label="Parser warnings"></section>
               </aside>
-              <div id="reservoir-render-window" class="reservoir-render-window" aria-label="Synthetic reservoir 3D viewer"></div>
+              <div id="reservoir-render-window" class="reservoir-render-window" aria-label="Reservoir 3D viewer"></div>
             </div>
           </section>
         </div>

@@ -131,7 +131,7 @@ export class GrdeclSemanticParser {
     }
 
     const coordValues = this.finalizeGeometry("COORD", this.coord, expectedCoordCount(this.dimensions));
-    const zcornValues = this.finalizeGeometry("ZCORN", this.zcorn, this.dimensions.totalCellCount * 8);
+    const zcornValues = reorderZcornToCellCorners(this.finalizeGeometry("ZCORN", this.zcorn, this.dimensions.totalCellCount * 8), this.dimensions);
     const activityMask = this.actnum ? this.finalizeActivity(this.actnum, this.dimensions.totalCellCount) : undefined;
     const geometry: CornerPointGridGeometry = {
       dimensions: this.dimensions,
@@ -207,6 +207,13 @@ export class GrdeclSemanticParser {
       block.values.appendRepetition(token.count, token.value, token.location);
       return;
     }
+    if (block.keyword === "SPECGRID" && block.values.length === 4 && (token.kind === "keyword" || token.kind === "string")) {
+      if (block.coordinateSystem) {
+        throw this.error("unexpected-token", "SPECGRID may contain only one coordinate-system token.", token.location, block.keyword);
+      }
+      block.coordinateSystem = token.value;
+      return;
+    }
     throw this.error("unterminated-keyword", `Keyword ${block.keyword} must terminate before ${token.kind}.`, token.location, block.keyword);
   }
 
@@ -248,9 +255,11 @@ export class GrdeclSemanticParser {
       throw this.error("default-not-allowed", `${block.keyword} cannot contain default repetitions.`, block.location, block.keyword);
     }
     const values = block.values.values();
-    const allowedCount = block.keyword === "SPECGRID" ? [3, 5] : [3];
+    const usesStandardSpecgridMetadata = block.keyword === "SPECGRID" && block.coordinateSystem !== undefined;
+    const allowedCount = block.keyword === "SPECGRID" ? usesStandardSpecgridMetadata ? [4] : [3, 5] : [3];
     if (!allowedCount.includes(values.length)) {
-      throw this.error("incorrect-count", `${block.keyword} requires ${allowedCount.join(" or ")} numeric values.`, block.location, block.keyword);
+      const expected = usesStandardSpecgridMetadata ? "four numeric values followed by one coordinate-system token" : `${allowedCount.join(" or ")} numeric values`;
+      throw this.error("incorrect-count", `${block.keyword} requires ${expected}.`, block.location, block.keyword);
     }
     const [nx, ny, nz] = values;
     if (!isPositiveInteger(nx) || !isPositiveInteger(ny) || !isPositiveInteger(nz)) {
@@ -341,6 +350,7 @@ interface KnownBlock {
   readonly keyword: string;
   readonly location: GrdeclLocation;
   readonly values: NumericAccumulator;
+  coordinateSystem?: string;
 }
 
 interface UnknownBlock {
@@ -450,4 +460,32 @@ function createOriginalCellIds(totalCellCount: number): Uint32Array {
 
 function isPositiveInteger(value: number | undefined): value is number {
   return value !== undefined && Number.isSafeInteger(value) && value > 0;
+}
+
+function reorderZcornToCellCorners(rawZcorn: Float64Array, dimensions: StructuredGridDimensions): Float64Array {
+  const reordered = new Float64Array(rawZcorn.length);
+  const doubledNx = dimensions.nx * 2;
+  const doubledNy = dimensions.ny * 2;
+  const rawIndex = (doubledI: number, doubledJ: number, doubledK: number) => doubledI + doubledNx * (doubledJ + doubledNy * doubledK);
+
+  for (let k = 0; k < dimensions.nz; k += 1) {
+    for (let j = 0; j < dimensions.ny; j += 1) {
+      for (let i = 0; i < dimensions.nx; i += 1) {
+        const cellOffset = (i + dimensions.nx * (j + dimensions.ny * k)) * 8;
+        const doubledI = i * 2;
+        const doubledJ = j * 2;
+        const doubledK = k * 2;
+        reordered[cellOffset] = rawZcorn[rawIndex(doubledI, doubledJ, doubledK)] ?? Number.NaN;
+        reordered[cellOffset + 1] = rawZcorn[rawIndex(doubledI + 1, doubledJ, doubledK)] ?? Number.NaN;
+        reordered[cellOffset + 2] = rawZcorn[rawIndex(doubledI + 1, doubledJ + 1, doubledK)] ?? Number.NaN;
+        reordered[cellOffset + 3] = rawZcorn[rawIndex(doubledI, doubledJ + 1, doubledK)] ?? Number.NaN;
+        reordered[cellOffset + 4] = rawZcorn[rawIndex(doubledI, doubledJ, doubledK + 1)] ?? Number.NaN;
+        reordered[cellOffset + 5] = rawZcorn[rawIndex(doubledI + 1, doubledJ, doubledK + 1)] ?? Number.NaN;
+        reordered[cellOffset + 6] = rawZcorn[rawIndex(doubledI + 1, doubledJ + 1, doubledK + 1)] ?? Number.NaN;
+        reordered[cellOffset + 7] = rawZcorn[rawIndex(doubledI, doubledJ + 1, doubledK + 1)] ?? Number.NaN;
+      }
+    }
+  }
+
+  return reordered;
 }
