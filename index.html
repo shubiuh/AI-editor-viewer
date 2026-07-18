@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101317" />
+    <title>My Code Editor</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-shell-header">
+        <div class="title-bar">
+          <div class="app-mark" aria-hidden="true">&lt;/&gt;</div>
+          <div class="app-name">My Code Editor</div>
+          <div id="file-name" class="file-name">Untitled</div>
+        </div>
+
+        <nav class="tab-strip" aria-label="功能选项卡">
+          <button class="tab-button active" data-ribbon-tab="home" type="button">Home</button>
+          <button class="tab-button" data-ribbon-tab="edit" type="button">Edit</button>
+          <button class="tab-button" data-ribbon-tab="view" type="button">View</button>
+        </nav>
+
+        <section class="ribbon" aria-label="编辑器工具">
+          <div class="ribbon-panel active" data-ribbon-panel="home">
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">File</div>
+              <div class="ribbon-group-controls">
+                <button id="open-button" type="button" title="打开文件 (Ctrl+O)">
+                  <span class="ribbon-icon" aria-hidden="true">↥</span> Open
+                </button>
+                <button id="save-button" type="button" title="保存文件 (Ctrl+S)">
+                  <span class="ribbon-icon" aria-hidden="true">↓</span> Save
+                </button>
+                <button id="save-as-button" type="button" title="另存为 (Ctrl+Shift+S)">
+                  <span class="ribbon-icon" aria-hidden="true">＋</span> Save As
+                </button>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Clipboard</div>
+              <div class="ribbon-group-controls">
+                <button id="cut-button" type="button" title="剪切">
+                  <span class="ribbon-icon" aria-hidden="true">✂</span> Cut
+                </button>
+                <button id="copy-button" type="button" title="复制">
+                  <span class="ribbon-icon" aria-hidden="true">▣</span> Copy
+                </button>
+                <button id="paste-button" type="button" title="粘贴">
+                  <span class="ribbon-icon" aria-hidden="true">▤</span> Paste
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ribbon-panel" data-ribbon-panel="edit">
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">History</div>
+              <div class="ribbon-group-controls">
+                <button id="undo-button" type="button" title="撤销 (Ctrl+Z)">
+                  <span class="ribbon-icon" aria-hidden="true">↶</span> Undo
+                </button>
+                <button id="redo-button" type="button" title="重做 (Ctrl+Y)">
+                  <span class="ribbon-icon" aria-hidden="true">↷</span> Redo
+                </button>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Navigate</div>
+              <div class="ribbon-group-controls">
+                <button id="find-button" type="button" title="查找 (Ctrl+F)">
+                  <span class="ribbon-icon" aria-hidden="true">⌕</span> Find
+                </button>
+                <button id="command-button" type="button" title="命令面板 (F1)">
+                  <span class="ribbon-icon" aria-hidden="true">⌘</span> Commands
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ribbon-panel" data-ribbon-panel="view">
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">3D View</div>
+              <div class="ribbon-group-controls">
+                <button id="open-vtk-button" type="button" title="打开 VTK 文件">
+                  <span class="ribbon-icon" aria-hidden="true">◈</span> Open VTK
+                </button>
+                <button id="open-glance-button" type="button" title="在嵌入式 Glance 查看器中打开文件">
+                  <span class="ribbon-icon" aria-hidden="true">▣</span> Glance
+                </button>
+                <button id="reset-vtk-button" type="button" title="重置 3D 相机">
+                  <span class="ribbon-icon" aria-hidden="true">⌂</span> Reset
+                </button>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Code Theme</div>
+              <div class="ribbon-group-controls">
+                <label class="theme-control" title="代码编辑器主题">
+                  <span class="ribbon-icon" aria-hidden="true">◐</span>
+                  <span class="visually-hidden">代码编辑器主题</span>
+                  <select id="theme-select" aria-label="代码编辑器主题">
+                    <option value="cpp-dark">C++ Dark</option>
+                    <option value="cpp-light">C++ Light</option>
+                    <option value="monokai">Monokai</option>
+                    <option value="dracula">Dracula</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="ribbon-group">
+              <div class="ribbon-group-title">Layout</div>
+              <div class="ribbon-group-controls view-controls">
+                <label class="ribbon-option">
+                  <input id="minimap-toggle" type="checkbox" checked /> Minimap
+                </label>
+                <label class="ribbon-option">
+                  <span>Wrap</span>
+                  <select id="wrap-select" aria-label="代码换行">
+                    <option value="off">Off</option>
+                    <option value="on">On</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+      </header>
+
+      <main class="workspace">
+        <aside class="dock-panel workspace-dock" id="workspace-dock" aria-label="Workspace dock">
+          <div class="dock-header">
+            <span class="dock-title"><span aria-hidden="true">▦</span> Workspace</span>
+            <div class="dock-actions">
+              <button id="workspace-dock-float" type="button" title="浮动窗口">↗</button>
+              <button id="workspace-dock-collapse" type="button" title="折叠窗口">−</button>
+            </div>
+          </div>
+          <div class="dock-content">
+            <label class="workspace-search">
+              <span aria-hidden="true">⌕</span>
+              <input type="search" placeholder="Filter files" aria-label="Filter files" />
+            </label>
+            <div class="workspace-tree">
+              <button class="tree-item tree-root" type="button"><span aria-hidden="true">⌄</span> my-code-editor</button>
+              <button class="tree-item" type="button"><span aria-hidden="true">▸</span> src</button>
+              <button class="tree-item tree-file active" type="button"><span aria-hidden="true">◈</span> Untitled</button>
+              <button class="tree-item" type="button"><span aria-hidden="true">◇</span> package.json</button>
+            </div>
+          </div>
+        </aside>
+
+        <div class="dock-splitter" id="workspace-splitter" role="separator" aria-label="Resize workspace dock" tabindex="0"></div>
+
+        <div class="editor-stack">
+          <div class="render-tabs" role="tablist" aria-label="Render area">
+            <button class="render-tab active" data-render-tab="editor" type="button" role="tab" aria-selected="true">Editor</button>
+            <button class="render-tab" data-render-tab="vtk" type="button" role="tab" aria-selected="false">VTK</button>
+            <button class="render-tab" data-render-tab="glance" type="button" role="tab" aria-selected="false">Glance</button>
+          </div>
+
+          <section class="dock-panel editor-dock render-panel is-render-active" id="editor-dock" aria-label="Editor dock">
+            <div class="dock-header">
+              <span class="dock-title"><span aria-hidden="true">▤</span> Editor</span>
+              <div class="dock-actions">
+                <button id="editor-dock-float" type="button" title="浮动窗口">↗</button>
+              </div>
+            </div>
+            <div class="editor-content">
+              <div id="editor" aria-label="代码编辑器"></div>
+            </div>
+          </section>
+
+          <section class="dock-panel vtk-dock render-panel" id="vtk-dock" aria-label="VTK 3D render dock">
+            <div class="dock-header">
+              <span class="dock-title"><span aria-hidden="true">◈</span> VTK 3D View</span>
+              <div class="dock-actions">
+                <span id="vtk-file-name" class="vtk-file-name">No dataset</span>
+                <button id="vtk-dock-float" type="button" title="浮动窗口">↗</button>
+              </div>
+            </div>
+            <div class="vtk-content">
+              <div id="vtk-render-window" aria-label="VTK 3D render window"></div>
+              <iframe id="glance-render-window" title="Kitware Glance viewer"></iframe>
+              <div id="vtk-empty-state" class="vtk-empty-state">
+                <span class="vtk-empty-icon" aria-hidden="true">◇</span>
+                <strong>VTK 3D Render Window</strong>
+                <span>Open a legacy .vtk dataset from the View ribbon.</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer class="status-bar">
+        <span id="status-message">准备就绪</span>
+        <span class="status-spacer"></span>
+        <span class="connection-status"><span class="status-dot"></span> Electron</span>
+        <span id="language-name">Plain Text</span>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "name": "my-code-editor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:vite\" \"npm:dev:electron\"",
+    "dev:vite": "vite --host 127.0.0.1",
+    "dev:electron": "wait-on http://127.0.0.1:5173 && electron .",
+    "build": "vite build",
+    "package:win": "npm run build && electron-builder --win",
+    "start": "npm run dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.0.12",
+    "vite": "^8.1.5",
+    "wait-on": "^9.0.10"
+  },
+  "dependencies": {
+    "@kitware/vtk.js": "^36.5.0",
+    "monaco-editor": "^0.53.0"
+  },
+  "build": {
+    "appId": "com.mycodeeditor.app",
+    "productName": "My Code Editor",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "dist/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
+  }
+}
