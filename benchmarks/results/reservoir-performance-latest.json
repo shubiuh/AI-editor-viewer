@@ -1,0 +1,135 @@
+{
+  "generatedAt": "2026-07-18T19:20:28.315Z",
+  "environment": {
+    "node": "v24.18.0",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "results": [
+    {
+      "case": "small",
+      "cells": 10000,
+      "stages": {
+        "fixtureGeneration": {
+          "milliseconds": 2.2257000000000176,
+          "status": "measured"
+        },
+        "parsing": {
+          "milliseconds": 5.026900000000012,
+          "status": "measured"
+        },
+        "geometryExtraction": {
+          "milliseconds": 26.263800000000003,
+          "status": "measured"
+        },
+        "workerTransferPreparation": {
+          "milliseconds": 0.15680000000003247,
+          "status": "measured"
+        },
+        "renderPlan": {
+          "milliseconds": 4.166699999999992,
+          "status": "measured"
+        },
+        "vtkDatasetConstruction": {
+          "milliseconds": 3.1440000000000055,
+          "status": "measured"
+        },
+        "firstRender": {
+          "milliseconds": null,
+          "status": "not-measured",
+          "note": "Node benchmark has no reliable WebGL/GPU timing API; no GPU timing or memory is claimed."
+        },
+        "propertyUpdate": {
+          "milliseconds": 0.9510999999999967,
+          "status": "measured"
+        },
+        "picking": {
+          "milliseconds": 0.04899999999997817,
+          "status": "measured"
+        }
+      },
+      "transferredBytes": {
+        "input": 1169648,
+        "output": 2815252
+      },
+      "typedArrayBytes": {
+        "fixtureInput": 1169648,
+        "parsedCase": 1259648,
+        "surface": 2815252,
+        "renderPlan": 1550448,
+        "property": 40000
+      },
+      "estimatedPeakBytes": 6834996,
+      "processMemory": {
+        "heapUsed": 19420160,
+        "arrayBuffers": 7372663
+      },
+      "thresholdFailures": []
+    },
+    {
+      "case": "medium",
+      "cells": 99856,
+      "stages": {
+        "fixtureGeneration": {
+          "milliseconds": 6.475200000000029,
+          "status": "measured"
+        },
+        "parsing": {
+          "milliseconds": 14.637,
+          "status": "measured"
+        },
+        "geometryExtraction": {
+          "milliseconds": 180.76819999999998,
+          "status": "measured"
+        },
+        "workerTransferPreparation": {
+          "milliseconds": 0.03530000000000655,
+          "status": "measured"
+        },
+        "renderPlan": {
+          "milliseconds": 12.659199999999998,
+          "status": "measured"
+        },
+        "vtkDatasetConstruction": {
+          "milliseconds": 0.8091000000000577,
+          "status": "measured"
+        },
+        "firstRender": {
+          "milliseconds": null,
+          "status": "not-measured",
+          "note": "Node benchmark has no reliable WebGL/GPU timing API; no GPU timing or memory is claimed."
+        },
+        "propertyUpdate": {
+          "milliseconds": 3.73580000000004,
+          "status": "measured"
+        },
+        "picking": {
+          "milliseconds": 0.011200000000030741,
+          "status": "measured"
+        }
+      },
+      "transferredBytes": {
+        "input": 11613680,
+        "output": 27734740
+      },
+      "typedArrayBytes": {
+        "fixtureInput": 11613680,
+        "parsedCase": 12512384,
+        "surface": 27734740,
+        "renderPlan": 15274224,
+        "property": 399424
+      },
+      "estimatedPeakBytes": 67534452,
+      "processMemory": {
+        "heapUsed": 14290672,
+        "arrayBuffers": 70894699
+      },
+      "thresholdFailures": []
+    }
+  ],
+  "notes": [
+    "Worker transfer measures transferable-buffer preparation and byte counts; browser cross-thread latency is not inferred in Node.",
+    "First render and GPU memory are not measured in Node because no reliable WebGL/GPU timing or memory API is available.",
+    "Estimated peak memory is the sum of unique typed-array buffers retained by benchmark stages, not process RSS or GPU memory."
+  ]
+}

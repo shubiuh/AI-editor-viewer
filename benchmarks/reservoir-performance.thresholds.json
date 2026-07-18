@@ -1,0 +1,18 @@
+{
+  "small": {
+    "fixtureGenerationMs": 2000,
+    "parsingMs": 10000,
+    "geometryExtractionMs": 15000,
+    "vtkDatasetConstructionMs": 10000,
+    "propertyUpdateMs": 5000,
+    "pickingMs": 1000
+  },
+  "medium": {
+    "fixtureGenerationMs": 10000,
+    "parsingMs": 60000,
+    "geometryExtractionMs": 120000,
+    "vtkDatasetConstructionMs": 60000,
+    "propertyUpdateMs": 15000,
+    "pickingMs": 3000
+  }
+}

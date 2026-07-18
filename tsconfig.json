@@ -14,6 +14,6 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "benchmarks/**/*.ts", "vitest.config.ts", "vitest.benchmark.config.ts"],
   "exclude": ["dist", "release", "node_modules"]
 }

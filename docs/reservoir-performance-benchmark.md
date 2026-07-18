@@ -1,0 +1,9 @@
+# Reservoir Performance Benchmark
+
+Run `npm run benchmark:reservoir` to execute the isolated Vitest benchmark configuration. It is excluded from `npm test`; `BENCH_ASSERT=1` makes the generous thresholds in `benchmarks/reservoir-performance.thresholds.json` fail the benchmark command when exceeded.
+
+The harness generates `small` (10,000 cells) and `medium` (99,856 cells) orthogonal grids. It adds the 1,000,000-cell `large` case automatically only when Node reports at least 6 GiB available memory; use `BENCHMARK_LARGE=0` or `BENCHMARK_LARGE=1` to override the automatic decision.
+
+Reports are written to `benchmarks/results/reservoir-performance-latest.json` and `benchmarks/results/reservoir-performance-latest.md`. They separately report fixture generation, compact GRDECL repetition parsing, direct geometry extraction, worker-transfer preparation and bytes, render-plan creation, VTK dataset construction, property updates, picking, typed-array bytes, and estimated peak typed-array memory.
+
+The Node harness explicitly reports first render as unavailable rather than claiming a GPU measurement. For a browser measurement, run the Vite server and open `/reservoir-benchmark.html` (append `?size=medium` for the medium case). It measures `ReservoirViewer.setGeometry()` through the next animation frame and provides JSON/Markdown downloads. It also reports worker transferable bytes rather than inferring browser cross-thread latency. Estimated peak memory is not process RSS and is never reported as GPU memory. Native or WASM work should be considered only after repeated benchmark evidence shows a dominant CPU bottleneck above the configured generous threshold.

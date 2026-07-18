@@ -6,7 +6,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: "index.html",
-        "reservoir-demo": "reservoir-demo.html"
+        "reservoir-demo": "reservoir-demo.html",
+        "reservoir-benchmark": "reservoir-benchmark.html"
       }
     }
   },
