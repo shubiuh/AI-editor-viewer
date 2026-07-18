@@ -13,7 +13,7 @@ A lightweight Electron code editor with local 3D visualization for legacy VTK fi
 ## Run
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -22,11 +22,25 @@ The development app uses Vite at `http://127.0.0.1:5173` and opens Electron afte
 ## Build
 
 ```bash
+npm run typecheck
+npm test
 npm run build
 npm run package:win
 ```
 
 `npm run build` creates the renderer in `dist/`. `npm run package:win` creates a Windows installer and portable build in `release/`.
+
+## Development Checks
+
+```bash
+npm run typecheck
+npm test
+npm run test:watch
+npm run test:coverage
+npm run check
+```
+
+Unit tests use Vitest with the Node environment by default. Use jsdom only in tests that require browser DOM behavior. TypeScript is introduced incrementally: new domain, renderer, worker, and test modules should be TypeScript, while the current Electron main process, preload bridge, editor, and VTK workflows remain JavaScript until they are migrated deliberately.
 
 ## VTK Support
 

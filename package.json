@@ -8,6 +8,11 @@
     "dev:vite": "vite --host 127.0.0.1",
     "dev:electron": "wait-on http://127.0.0.1:5173 && electron .",
     "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.electron.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run typecheck && npm test && npm run build",
     "package:win": "npm run build && electron-builder --win",
     "start": "npm run dev"
   },
@@ -16,10 +21,15 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "concurrently": "^10.0.3",
     "electron": "^43.1.1",
     "electron-builder": "^26.0.12",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
     "vite": "^8.1.5",
+    "vitest": "^4.1.10",
     "wait-on": "^9.0.10"
   },
   "dependencies": {
