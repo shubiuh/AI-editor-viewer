@@ -16,6 +16,7 @@ import {
 import { createVtkViewer } from "./vtk-viewer.js";
 import { ReservoirViewer } from "./reservoir/rendering/reservoir-viewer";
 import { defaultWellTrajectoryRenderSettings } from "./reservoir/rendering/trajectory-render-plan";
+import { defaultWellLogTrackSettings, SelectedDepthController, supportsDepthMode, WellLogViewer } from "./reservoir/well-log";
 import { SurfaceExtractionWorkerClient, SurfaceWorkerCancelledError, SurfaceWorkerInitializationError, SurfaceWorkerRemoteError } from "./reservoir/geometry/surface-worker-client";
 import { GrdeclParserWorkerCancelledError, GrdeclParserWorkerClient } from "./reservoir/formats/grdecl/parser-worker-client";
 import {
@@ -74,6 +75,9 @@ const reservoirInactiveToggle = document.querySelector("#reservoir-inactive-togg
 const reservoirEdgesToggle = document.querySelector("#reservoir-edges-toggle");
 const reservoirCameraSelect = document.querySelector("#reservoir-camera-select");
 const reservoirWellControls = document.querySelector("#reservoir-well-controls");
+const reservoirLogViewport = document.querySelector("#reservoir-log-viewport");
+const reservoirLogControls = document.querySelector("#reservoir-log-controls");
+const reservoirLogDepthMode = document.querySelector("#reservoir-log-depth-mode");
 const reservoirInspector = document.querySelector("#reservoir-inspector");
 const reservoirProgressPanel = document.querySelector("#reservoir-progress-panel");
 const reservoirProgress = document.querySelector("#reservoir-progress");
@@ -105,6 +109,10 @@ const vtkViewer = createVtkViewer(
   document.querySelector("#vtk-render-window")
 );
 const reservoirViewer = new ReservoirViewer();
+const selectedDepthController = new SelectedDepthController();
+const reservoirLogViewer = new WellLogViewer(reservoirLogViewport, {
+  onSelectedDepth: (event) => selectedDepthController.set(event)
+});
 const surfaceWorkerClient = new SurfaceExtractionWorkerClient();
 const grdeclParserWorkerClient = new GrdeclParserWorkerClient();
 let reservoirWorkspaceState = createReservoirWorkspaceState();
@@ -117,6 +125,15 @@ let reservoirStage = "Ready";
 let reservoirAttached = false;
 const wellRenderSettings = new Map();
 const wellPalette = [[0.94, 0.37, 0.16], [0.13, 0.77, 0.72], [0.96, 0.76, 0.2], [0.58, 0.72, 0.96]];
+const logRenderSettings = new Map();
+const logPalette = [[0.94, 0.37, 0.16], [0.18, 0.82, 0.71], [0.96, 0.76, 0.2], [0.58, 0.72, 0.96]];
+let reservoirLogPlotCurves = [];
+selectedDepthController.subscribe((event) => {
+  reservoirLogViewer.setSelectedDepth(event);
+  if (event.source === "well-log") {
+    reservoirInspector.textContent = `Selected ${event.depthMode.toUpperCase()} ${event.depth.toFixed(2)} m from well-log viewer.`;
+  }
+});
 initializeDockLayout();
 new ResizeObserver(() => vtkViewer.resize()).observe(
   document.querySelector("#vtk-render-window")
@@ -273,7 +290,11 @@ async function loadGrdeclReservoir() {
   reservoirViewer.clear();
   reservoirModel = null;
   wellRenderSettings.clear();
+  logRenderSettings.clear();
+  reservoirLogPlotCurves = [];
+  reservoirLogViewer.setCurves([]);
   updateReservoirWellControls();
+  updateReservoirLogControls();
   replaceReservoirPropertyOptions([]);
   reservoirStage = "Selecting GRDECL file";
   reservoirWorkspaceState = setWorkspaceLoading(reservoirWorkspaceState);
@@ -344,6 +365,7 @@ async function loadGrdeclReservoir() {
       localOrigin: parsed.reservoirCase.metadata.localOrigin,
       properties: parsed.reservoirCase.propertyCatalog.map((descriptor) => ({ descriptor, frame: parsed.reservoirCase.propertyFrames.find((frame) => frame.propertyId === descriptor.id) })),
       wells: parsed.reservoirCase.wells,
+      wellLogCurves: parsed.reservoirCase.wellLogCurves,
       surface,
       warnings: parsed.warnings,
       parsingDurationMs,
@@ -352,6 +374,7 @@ async function loadGrdeclReservoir() {
     reservoirViewer.setGeometry({ surface, dimensions: reservoirModel.dimensions, localOrigin: reservoirModel.localOrigin, ...(activityMask ? { activityMask } : {}) });
     updateReservoirWellControls();
     applyReservoirWells();
+    initializeReservoirLogs();
     replaceReservoirPropertyOptions(reservoirModel.properties);
     reservoirWorkspaceState = setWorkspaceProperty(reservoirWorkspaceState, reservoirModel.properties[0]?.descriptor.id);
     applyReservoirWorkspaceState();
@@ -405,6 +428,74 @@ function applyReservoirWells() {
     trajectory,
     settings: wellSettingsFor(trajectory, index)
   })));
+}
+
+function initializeReservoirLogs() {
+  reservoirLogPlotCurves = (reservoirModel?.wellLogCurves ?? []).map((curve, index) => ({ curve, color: logPalette[index % logPalette.length] }));
+  logRenderSettings.clear();
+  reservoirLogViewer.setCurves(reservoirLogPlotCurves);
+  reservoirLogDepthMode.value = "md";
+  reservoirLogDepthMode.disabled = !supportsDepthMode(reservoirLogPlotCurves, "tvd");
+  updateReservoirLogControls();
+}
+
+function applyReservoirLogs() {
+  reservoirLogViewer.setTrackSettings(reservoirLogPlotCurves.map((curve, index) => logSettingsFor(curve, index)));
+}
+
+function updateReservoirLogControls() {
+  reservoirLogControls.replaceChildren();
+  if (reservoirLogPlotCurves.length === 0) {
+    reservoirLogControls.textContent = "No log curves loaded.";
+    return;
+  }
+  reservoirLogPlotCurves.forEach((plotCurve, index) => {
+    const settings = logSettingsFor(plotCurve, index);
+    const control = document.createElement("div");
+    control.className = "reservoir-well-control";
+    const title = document.createElement("strong");
+    title.textContent = `${plotCurve.curve.mnemonic} (${plotCurve.curve.unit.symbol})`;
+    control.append(title);
+    control.append(
+      wellCheckbox("Visible", settings.visible, (visible) => updateLogSettings(settings.curveId, { visible })),
+      wellSelect("Scale", [["linear", "Linear"], ["logarithmic", "Log"]], settings.scale, (scale) => updateLogSettings(settings.curveId, { scale })),
+      wellNumber("Minimum", settings.range.minimum, settings.scale === "logarithmic" ? Number.MIN_VALUE : -Number.MAX_VALUE, (minimum) => updateLogRange(settings.curveId, { ...settings.range, minimum })),
+      wellNumber("Maximum", settings.range.maximum, -Number.MAX_VALUE, (maximum) => updateLogRange(settings.curveId, { ...settings.range, maximum }))
+    );
+    reservoirLogControls.append(control);
+  });
+}
+
+function logSettingsFor(plotCurve, index) {
+  const key = `${plotCurve.curve.wellId}:${plotCurve.curve.mnemonic}`;
+  const stored = logRenderSettings.get(key);
+  if (stored) {
+    return stored;
+  }
+  const settings = defaultWellLogTrackSettings(plotCurve);
+  logRenderSettings.set(key, settings);
+  return settings;
+}
+
+function updateLogSettings(curveId, patch) {
+  const current = logRenderSettings.get(curveId);
+  if (!current) {
+    return;
+  }
+  const next = { ...current, ...patch };
+  if (next.scale === "logarithmic" && next.range.minimum <= 0) {
+    next.range = { ...next.range, minimum: Math.max(Number.MIN_VALUE, next.range.maximum / 1000) };
+  }
+  logRenderSettings.set(curveId, next);
+  applyReservoirLogs();
+  updateReservoirLogControls();
+}
+
+function updateLogRange(curveId, range) {
+  if (!Number.isFinite(range.minimum) || !Number.isFinite(range.maximum) || range.maximum <= range.minimum) {
+    return;
+  }
+  updateLogSettings(curveId, { range });
 }
 
 function updateReservoirWellControls() {
@@ -614,6 +705,7 @@ reservoirClipInputs.forEach((input) => input.addEventListener("change", () => {
   applyReservoirWorkspaceState();
 }));
 reservoirCameraSelect.addEventListener("change", () => reservoirViewer.setGeologicalView(reservoirCameraSelect.value));
+reservoirLogDepthMode.addEventListener("change", () => reservoirLogViewer.setDepthMode(reservoirLogDepthMode.value));
 reservoirErrorClearButton.addEventListener("click", () => {
   reservoirWorkspaceState = clearWorkspaceError(reservoirWorkspaceState);
   updateReservoirUI();
@@ -623,6 +715,7 @@ reservoirRenderWindow.addEventListener("click", (event) => {
   const picked = reservoirViewer.pick(event.clientX - bounds.left, event.clientY - bounds.top);
   if (picked && "wellId" in picked) {
     reservoirInspector.textContent = `Well ${picked.wellName} | MD ${picked.measuredDepth.toFixed(2)} m | Station ${picked.stationIndex} | XYZ ${picked.worldCoordinate.map((value) => value.toFixed(2)).join(", ")}`;
+    selectedDepthController.set({ source: "reservoir", depthMode: "md", depth: picked.measuredDepth });
     return;
   }
   reservoirInspector.textContent = picked
@@ -633,6 +726,7 @@ window.addEventListener("beforeunload", () => {
   cancelReservoirLoad();
   grdeclParserWorkerClient.terminate();
   surfaceWorkerClient.terminate();
+  reservoirLogViewer.dispose();
   reservoirViewer.dispose();
 }, { once: true });
 

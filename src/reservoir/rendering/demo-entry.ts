@@ -2,13 +2,16 @@ import "@kitware/vtk.js/Rendering/Profiles/Geometry";
 
 import { extractReservoirSurface } from "../geometry/surface-extractor";
 import { ReservoirViewer } from "./reservoir-viewer";
-import { createSyntheticCrossingWellTrajectories, createThreeByTwoByTwoPropertyFixture } from "../testing/fixtures";
+import { createSyntheticCrossingWellTrajectories, createSyntheticLasFixture, createThreeByTwoByTwoPropertyFixture } from "../testing/fixtures";
 import { defaultWellTrajectoryRenderSettings } from "./trajectory-render-plan";
+import { SelectedDepthController, WellLogViewer, supportsDepthMode, type WellLogPlotCurve } from "../well-log";
 
 const viewport = document.querySelector<HTMLElement>("#reservoir-demo-viewport");
 const status = document.querySelector<HTMLElement>("#reservoir-demo-status");
+const logViewport = document.querySelector<HTMLElement>("#reservoir-demo-log-viewport");
+const depthMode = document.querySelector<HTMLSelectElement>("#reservoir-demo-depth-mode");
 
-if (!viewport || !status) {
+if (!viewport || !status || !logViewport || !depthMode) {
   throw new Error("Reservoir demo elements are missing.");
 }
 
@@ -22,6 +25,8 @@ if (extraction.status !== "completed") {
 }
 
 const viewer = new ReservoirViewer();
+const selectedDepth = new SelectedDepthController();
+const logViewer = new WellLogViewer(logViewport, { onSelectedDepth: (event) => selectedDepth.set(event) });
 viewer.attach(viewport);
 viewer.setGeometry({
   surface: extraction.geometry,
@@ -47,6 +52,21 @@ viewer.setWells(createSyntheticCrossingWellTrajectories().map((trajectory, index
   }
 })));
 viewer.setGeologicalView("isometric");
+const syntheticLas = createSyntheticLasFixture();
+const logCurves: WellLogPlotCurve[] = syntheticLas.curves.map((curve, index) => {
+  const tvdDepths = syntheticLas.tvdDepthsByMnemonic.get(curve.mnemonic);
+  return {
+    curve,
+    ...(tvdDepths ? { tvdDepths } : {}),
+    color: index === 0 ? [0.96, 0.42, 0.18] : [0.18, 0.82, 0.71]
+  };
+});
+logViewer.setCurves(logCurves);
+depthMode.disabled = !supportsDepthMode(logCurves, "tvd");
+selectedDepth.subscribe((event) => {
+  logViewer.setSelectedDepth(event);
+  status.textContent = `Synthetic 3x2x2: 2 crossing wells | ${event.depthMode.toUpperCase()} ${event.depth.toFixed(2)} m selected`;
+});
 status.textContent = `Synthetic 3x2x2: ${extraction.geometry.statistics.emittedFaceCount} visible faces, 2 crossing wells`;
 
 document.querySelectorAll<HTMLButtonElement>("[data-geological-view]").forEach((button) => {
@@ -63,4 +83,17 @@ document.querySelector("#reservoir-demo-edges")?.addEventListener("change", (eve
   viewer.setRepresentation(enabled ? "surface-with-edges" : "surface");
 });
 
-window.addEventListener("beforeunload", () => viewer.dispose(), { once: true });
+depthMode.addEventListener("change", () => logViewer.setDepthMode(depthMode.value as "md" | "tvd"));
+
+viewport.addEventListener("click", (event) => {
+  const bounds = viewport.getBoundingClientRect();
+  const picked = viewer.pick(event.clientX - bounds.left, event.clientY - bounds.top);
+  if (picked && "wellId" in picked) {
+    selectedDepth.set({ source: "reservoir", depthMode: "md", depth: picked.measuredDepth });
+  }
+});
+
+window.addEventListener("beforeunload", () => {
+  logViewer.dispose();
+  viewer.dispose();
+}, { once: true });

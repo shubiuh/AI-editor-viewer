@@ -255,6 +255,17 @@
                   <div id="reservoir-well-controls" class="reservoir-well-controls">No trajectories loaded.</div>
                 </section>
 
+                <section class="reservoir-section">
+                  <h2>Well Logs</h2>
+                  <label>Depth axis
+                    <select id="reservoir-log-depth-mode" aria-label="Well-log depth axis">
+                      <option value="md">MD</option>
+                      <option value="tvd" disabled>TVD</option>
+                    </select>
+                  </label>
+                  <div id="reservoir-log-controls" class="reservoir-well-controls">No log curves loaded.</div>
+                </section>
+
                 <section class="reservoir-section reservoir-inspector">
                   <h2>Selected Cell</h2>
                   <output id="reservoir-inspector">Click a visible face to inspect it.</output>
@@ -274,7 +285,13 @@
 
                 <section id="reservoir-warnings" class="reservoir-section" hidden aria-label="Parser warnings"></section>
               </aside>
-              <div id="reservoir-render-window" class="reservoir-render-window" aria-label="Reservoir 3D viewer"></div>
+              <div class="reservoir-visual-stack">
+                <div id="reservoir-render-window" class="reservoir-render-window" aria-label="Reservoir 3D viewer"></div>
+                <section class="reservoir-log-panel" aria-label="Well-log viewer">
+                  <header><span>Well Logs</span><span>Click cursor, drag depth, wheel to zoom</span></header>
+                  <div id="reservoir-log-viewport"></div>
+                </section>
+              </div>
             </div>
           </section>
         </div>

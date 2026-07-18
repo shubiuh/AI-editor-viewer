@@ -6,13 +6,15 @@
     <title>Reservoir Viewer Demo</title>
     <style>
       :root { color-scheme: dark; font-family: "Segoe UI", sans-serif; background: #101317; color: #e7edf0; }
-      body { margin: 0; min-height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+      body { margin: 0; height: 100vh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); }
       header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; background: #1b2228; border-bottom: 1px solid #37424c; }
       h1 { margin: 0 14px 0 0; font-size: 15px; }
       button, label { font: inherit; font-size: 12px; }
       button { border: 1px solid #46525d; background: #26313a; color: #e7edf0; padding: 5px 8px; cursor: pointer; }
       #reservoir-demo-status { margin-left: auto; color: #a7b4be; font-size: 12px; }
-      #reservoir-demo-viewport { min-height: 0; }
+      .demo-content { display: grid; grid-template-rows: minmax(260px, 3fr) minmax(190px, 2fr); min-height: 0; }
+      #reservoir-demo-viewport, #reservoir-demo-log-viewport { min-height: 0; }
+      #reservoir-demo-log-viewport { border-top: 1px solid #37424c; }
     </style>
   </head>
   <body>
@@ -23,9 +25,13 @@
       <button data-geological-view="east" type="button">East</button>
       <button data-geological-view="isometric" type="button">Isometric</button>
       <label><input id="reservoir-demo-edges" type="checkbox" checked /> Edges</label>
+      <label>Depth <select id="reservoir-demo-depth-mode"><option value="md">MD</option><option value="tvd">TVD</option></select></label>
       <span id="reservoir-demo-status"></span>
     </header>
-    <main id="reservoir-demo-viewport"></main>
+    <main class="demo-content">
+      <div id="reservoir-demo-viewport"></div>
+      <div id="reservoir-demo-log-viewport"></div>
+    </main>
     <script type="module" src="/src/reservoir/rendering/demo-entry.ts"></script>
   </body>
 </html>
