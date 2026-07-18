@@ -1,8 +1,11 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { ReservoirFileSessionStore } = require("./electron/reservoir-file-session");
 
 const isDevelopment = !app.isPackaged;
+const reservoirFileSessions = new ReservoirFileSessionStore({ fs });
+const developmentUrl = process.env.ELECTRON_RENDERER_URL || "http://127.0.0.1:5173";
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -19,12 +22,25 @@ function createWindow() {
       nodeIntegration: false,
 
       // 将 preload 和网页代码隔离
-      contextIsolation: true
+      contextIsolation: true,
+
+      // Keep preload limited to contextBridge and IPC APIs.
+      sandbox: true
+    }
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const allowedUrl = isDevelopment
+      ? url.startsWith(developmentUrl)
+      : url.startsWith("file:");
+    if (!allowedUrl) {
+      event.preventDefault();
     }
   });
 
   if (isDevelopment) {
-    mainWindow.loadURL("http://127.0.0.1:5173");
+    mainWindow.loadURL(developmentUrl);
 
     // 开发阶段可以打开调试工具
     // mainWindow.webContents.openDevTools();
@@ -47,6 +63,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  reservoirFileSessions.releaseAll();
 });
 
 /**
@@ -240,4 +260,32 @@ ipcMain.handle("vtk:open", async () => {
       error: `读取 VTK 文件失败：${error.message}`
     };
   }
+});
+
+ipcMain.handle("reservoir:file-open", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Open reservoir file",
+    properties: ["openFile"],
+    filters: [
+      { name: "Reservoir data files", extensions: ["egrid", "init", "unrst", "grdecl", "grid", "data"] },
+      { name: "All files", extensions: ["*"] }
+    ]
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { canceled: true };
+  }
+
+  const registered = await reservoirFileSessions.registerFilePath(result.filePaths[0]);
+  return registered.ok
+    ? { canceled: false, metadata: registered.metadata }
+    : registered;
+});
+
+ipcMain.handle("reservoir:file-read-range", async (_event, request) => {
+  return reservoirFileSessions.readRange(request);
+});
+
+ipcMain.handle("reservoir:file-release", (_event, token) => {
+  return reservoirFileSessions.release(token);
 });
