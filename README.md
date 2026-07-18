@@ -32,7 +32,7 @@ npm run package:win
 
 The **VTK** tab is intended for legacy `.vtk` datasets. It supports `POLYDATA` and converts common unstructured-grid cells into renderable faces, including tetrahedra.
 
-The **Glance** tab is embedded locally and provides a richer viewer for its supported formats. Its optional ITK processing extensions and sample catalog are intentionally excluded to keep the application bundle smaller.
+The **Glance** tab is embedded locally and provides a richer viewer for its supported formats, including legacy `.vtk` through its ITK reader extension. The sample catalog is hidden from the embedded interface.
 
 ## Third-Party Software
 

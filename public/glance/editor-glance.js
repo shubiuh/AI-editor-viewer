@@ -55,7 +55,7 @@ function simplifyGlance() {
         <ul>
           <li>Use <strong>Open</strong> to choose a file.</li>
           <li>Drop a supported file into the panel.</li>
-          <li>Legacy <code>.vtk</code> files open in the VTK tab.</li>
+          <li>Legacy <code>.vtk</code> files open directly in Glance.</li>
         </ul>
       </div>
     `;
